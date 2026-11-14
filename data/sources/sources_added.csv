@@ -1,0 +1,3 @@
+fichier,source,url,date_consultation,licence_conditions,traitement,limites
+esg_etf_holdings.csv,Site de l'émetteur du FNB ESG,,,,"Liste des titres détenus, symboles uniformisés","Méthodologie d'un seul émetteur"
+esg_controverses.csv,Rapports de durabilité / revue manuelle,,,,"Une ligne par action","Revue manuelle, subjective"

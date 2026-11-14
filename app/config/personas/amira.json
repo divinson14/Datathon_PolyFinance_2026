@@ -1,0 +1,10 @@
+{
+  "id": "amira", "nom": "Amira", "age": 26, "metier": "Ingénieure logicielle",
+  "risque": "eleve", "horizon": "15 ans et plus", "capital": 50000,
+  "niveau_experience": "intermediaire",
+  "objectif": "Faire croître son capital à long terme",
+  "preferences": ["IA et technologies émergentes", "Ouverte à une forte volatilité", "Veut rester diversifiée"],
+  "portefeuille_suppose": {"XIU": 0.8, "XBB": 0.2},
+  "portefeuille_suppose_libelle": "80 % actions / 20 % obligations",
+  "message_exemple": "Je crois beaucoup à Tesla et aux technologies émergentes. Je pense mettre 30 % de mon portefeuille dedans."
+}

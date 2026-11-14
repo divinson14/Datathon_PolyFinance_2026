@@ -1,0 +1,20 @@
+# Seuils fixés par l'ÉQUIPE (jamais par le LLM). Chaque valeur est une hypothèse documentée :
+# justifiez-la dans docs/decisions.md.
+faible_a_modere:
+  label: "Faible à modéré"
+  poids_max_par_titre: 0.05
+  volatilite_max: 0.10
+  perte_max_toleree: -0.15
+  crypto_max: 0.0
+modere:
+  label: "Modéré"
+  poids_max_par_titre: 0.10
+  volatilite_max: 0.15
+  perte_max_toleree: -0.25
+  crypto_max: 0.0
+eleve:
+  label: "Élevé"
+  poids_max_par_titre: 0.15
+  volatilite_max: 0.25
+  perte_max_toleree: -0.35
+  crypto_max: 0.10

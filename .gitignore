@@ -1,0 +1,21 @@
+# Secrets
+.env
+*.pem
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+# Sorties générées
+app/traces_locales/
+data/processed/*
+!data/processed/.gitkeep
+# Données brutes volumineuses : décommentez si le jeu de départ est trop lourd pour git
+# data/raw/starter/*
+# !data/raw/starter/.gitkeep
+# Systèmes
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
