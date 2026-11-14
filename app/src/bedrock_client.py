@@ -27,14 +27,26 @@ def appeler(texte: str, modele: str = "redaction", max_tokens: int = 1500) -> st
     params = {
         "modelId": model_id,
         "messages": [{"role": "user", "content": [{"text": texte}]}],
-        "inferenceConfig": {"maxTokens": max_tokens, "temperature": 0},
+        "inferenceConfig": {"maxTokens": max_tokens},
     }
+    # Les modèles Claude récents refusent `temperature` (ValidationException « deprecated for this model »).
+    # On ne l'envoie que si BEDROCK_TEMPERATURE est défini (modèles plus anciens). Le déterminisme ne repose
+    # de toute façon pas sur le LLM : les chiffres viennent du code et le vérificateur contrôle le texte.
+    if os.getenv("BEDROCK_TEMPERATURE"):
+        params["inferenceConfig"]["temperature"] = float(os.environ["BEDROCK_TEMPERATURE"])
     if os.getenv("BEDROCK_GUARDRAIL_ID"):
         params["guardrailConfig"] = {"guardrailIdentifier": os.environ["BEDROCK_GUARDRAIL_ID"],
                                      "guardrailVersion": os.getenv("BEDROCK_GUARDRAIL_VERSION", "DRAFT")}
     rep = _bedrock().converse(**params)
     # TODO équipe : journaliser rep["usage"] (jetons) et rep["metrics"]["latencyMs"] dans CloudWatch
-    return rep["output"]["message"]["content"][0]["text"]
+    # La réponse peut contenir plusieurs blocs (raisonnement, texte…) dans n'importe quel ordre :
+    # on garde uniquement les blocs de texte. Le raisonnement interne n'est ni lu ni exposé.
+    blocs = rep["output"]["message"]["content"]
+    texte_rep = "".join(b["text"] for b in blocs if "text" in b)
+    if not texte_rep:
+        raise RuntimeError(f"réponse sans bloc de texte (stopReason={rep.get('stopReason')}, "
+                           f"blocs={[next(iter(b)) for b in blocs]})")
+    return texte_rep
 
 
 def appeler_json(texte: str, modele: str = "redaction") -> dict | None:

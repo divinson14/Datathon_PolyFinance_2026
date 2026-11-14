@@ -23,6 +23,7 @@ def _yaml(nom):
 
 GABARITS = _yaml("gabarits_risque.yaml")
 CALCUL = _yaml("calcul.yaml")
+PROFIL = _yaml("profil.yaml")
 STYLES = _yaml("styles_explication.yaml")
 PERSONAS = {
     p.stem: json.loads(p.read_text(encoding="utf-8"))

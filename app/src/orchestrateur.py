@@ -8,13 +8,15 @@ from src.traces.journal import Journal
 from src.verif import fidelite
 
 
-def executer(persona_id: str, message: str, style: str | None = None, halluciner: bool = False, on_etape=None) -> dict:
-    persona = config.PERSONAS[persona_id]
-    gabarit = config.GABARITS[persona["risque"]]
-    style = style or ("avance" if persona["niveau_experience"] == "avance" else "inter")
+def executer(persona_id: str | None, message: str, style: str | None = None, on_etape=None,
+             profil_saisi: dict | None = None) -> dict:
+    """persona_id = persona de référence ; OU profil_saisi = 5 champs (age, tolerance, horizon_ans, objectif, esg[, capital])."""
     prix, univers, source = charger()
     journal = Journal()
     etapes = []
+    mandat = profil.construire_mandat(persona_id, profil_saisi, journal)
+    persona, gabarit = mandat["profil"], mandat["gabarit"]
+    style = style or ("avance" if persona["niveau_experience"] == "avance" else "inter")
 
     def etape(agent, statut, texte, **details):
         e = {"agent": agent, "statut": statut, "texte": texte, **details}
@@ -23,7 +25,7 @@ def executer(persona_id: str, message: str, style: str | None = None, halluciner
             on_etape(e)
 
     def arret():
-        return {"arret": True, "etapes": etapes, "journal": journal, "persona": persona}
+        return {"arret": True, "etapes": etapes, "journal": journal, "persona": persona, "mandat": mandat}
 
     # 1. Garde-fou
     if profil.demande_de_transaction(message):
@@ -31,23 +33,34 @@ def executer(persona_id: str, message: str, style: str | None = None, halluciner
         return arret()
     etape("Bedrock Guardrails", "ok", "Demande admise · analyse en mode simulation")
 
-    # 2. Agent Profil
-    dem = profil.extraire(message, persona, univers)
-    if dem.get("symbole") is None:
-        etape("Agent Profil", "warn", f"Actif non reconnu. L'univers couvre : {', '.join(univers['symbole'].astype(str))}. Précise l'actif visé.")
+    # 2. Agent Profil : mandat (profil + gabarit) puis demande
+    if mandat["bloquant"]:
+        etape("Agent Profil", "warn", mandat["question"], trace=mandat["trace"],
+              note="Information manquante : " + ", ".join(mandat["informations_manquantes"]) + ". Le système ne la devine pas.")
         return arret()
-    if dem.get("part") is None:
-        etape("Agent Profil", "warn", "Information manquante : quelle part du portefeuille souhaites-tu y mettre ? Je ne la devine pas à ta place.")
+    dem = profil.extraire(message, persona, univers, journal)
+    mandat["demande"] = {k: dem[k] for k in ("symbole", "part", "symboles_mentionnes", "informations_manquantes", "methode", "trace")}
+    if dem["informations_manquantes"]:
+        etape("Agent Profil", "warn", dem["question"], trace=dem["trace"],
+              note="Information manquante : " + ", ".join(dem["informations_manquantes"]) + ". Le système ne la devine pas.")
         return arret()
     symbole, part = dem["symbole"], float(dem["part"])
     g = gabarit
     seuils = (f"poids max/titre {pct(g['poids_max_par_titre'])} · part du risque max/titre {pct(g['part_risque_max_par_titre'])} · "
               f"vol. max {pct(g['volatilite_max'])} · pire baisse max {pct(g['pire_baisse_max'])} · "
               f"obligations min {pct(g['obligations_min'])} · crypto max {pct(g['crypto_max'])}")
-    etape("Agent Profil", "warn", "Demande comprise · le portefeuille actuel est une hypothèse affichée",
-          mandat=[("Actif demandé", symbole), ("Part demandée", pct(part)), ("Gabarit appliqué", f"« {g['label']} » (config/)"),
+    remarques = ([f"Tension : {t}." for t in mandat["tensions"]]
+                 + [f"Information manquante : {', '.join(mandat['informations_manquantes'])}."] * bool(mandat["informations_manquantes"]))
+    etape("Agent Profil", "warn", "Mandat construit et demande comprise · les hypothèses sont affichées"
+          + (f" · {len(mandat['tensions'])} tension(s) dans le profil" if mandat["tensions"] else ""),
+          trace=mandat["trace"], note=" ".join(remarques) or None,
+          mandat=[("Actif demandé", symbole), ("Part demandée", pct(part) + (f" (= {dem['lecture']['extrait']})" if dem["lecture"]["type"] == "montant" else "")),
+                  ("Lecture de la demande", dem["methode"]),
+                  ("Gabarit appliqué", f"« {g['label']} » (config/)"),
                   ("Seuils (hypothèses de l'équipe)", seuils),
-                  ("Hypothèse", f"portefeuille actuel : {persona['portefeuille_suppose_libelle']}")])
+                  ("Profil", f"{mandat['source']} · horizon {persona['horizon']}"),
+                  *[("Hypothèse", h) for h in mandat["hypotheses"]],
+                  ("Traces", f"{mandat['trace']} (mandat) · {dem['trace']} (demande)")])
 
     # 3. Agent Analyste, tentative 1
     d = analyste.analyser_demande(journal, persona, symbole, part, gabarit, univers)
@@ -94,26 +107,51 @@ def executer(persona_id: str, message: str, style: str | None = None, halluciner
 
     # 5. Agent Explicabilité + vérificateur de fidélité
     nom_actif = str(univers.loc[univers["symbole"] == symbole, "nom"].iloc[0])
-    contexte = {"persona": persona, "gabarit": gabarit, "symbole": symbole, "nom_actif": nom_actif,
+    contexte = {"persona": persona, "gabarit": gabarit, "symbole": symbole, "nom_actif": nom_actif, "mandat": mandat,
                 "demande": d, "alternative": alt, "verdicts": verd}
     autorise = " ".join([str(persona["capital"]), persona["horizon"], persona["portefeuille_suppose_libelle"],
                          str(config.CALCUL["annee_scenario"]), str(len(verd["regles"])), seuils,
                          nombre(g["paris_effectifs_min"]) if g.get("paris_effectifs_min") is not None else ""])
-    fiche = explicabilite.rediger(contexte, journal, style, halluciner=halluciner)
-    etape("Agent Explicabilité", "ok", f"Réponse rédigée au niveau « {'avancé' if style == 'avance' else 'intermédiaire'} »",
+    fiche, verif = rediger_verifie(contexte, journal, style, autorise, etape)
+
+    return {"arret": False, "etapes": etapes, "journal": journal, "persona": persona, "gabarit": gabarit,
+            "symbole": symbole, "demande": d, "alternative": alt, "verdicts": verd, "fiche": fiche,
+            "verif": verif, "contexte": contexte, "source_donnees": source, "mandat": mandat, "autorise": autorise}
+
+
+def rediger_verifie(contexte: dict, journal, style: str, autorise: str, etape):
+    """Rédaction + vérificateur de fidélité, avec régénération stricte puis gabarit sûr en dernier recours.
+    AUCUN texte n'est affiché sans être passé par ici."""
+    niveau = "avancé" if style == "avance" else "intermédiaire"
+    fiche = explicabilite.rediger(contexte, journal, style)
+    etape("Agent Explicabilité", "ok", f"Réponse rédigée au niveau « {niveau} »"
+          + (" par le LLM" if fiche.get("auteur") == "llm" else f" ({fiche.get('auteur', 'gabarit')})"),
           note=f"{len(fiche['lignes'])} affirmations étiquetées (Fait / Hypothèse / Scénario fictif), reliées à leurs traces.")
-    verif = fidelite.verifier(journal, fiche, autorise, 1)
+    version = len([t for t in journal.traces if t["titre"].startswith("Vérification de fidélité")]) + 1
+    verif = fidelite.verifier(journal, fiche, autorise, version)
     if not verif["ok"]:
         etape("Vérificateur de fidélité", "fail", "Réponse rejetée → régénération en mode strict",
               note=f"Chiffre(s) introuvable(s) dans les traces : {', '.join(verif['rejets'])}", trace=verif["trace"])
         fiche = explicabilite.rediger(contexte, journal, style, strict=True)
-        verif = fidelite.verifier(journal, fiche, autorise, 2)
+        verif = fidelite.verifier(journal, fiche, autorise, version + 1)
         if not verif["ok"]:                     # dernier recours : gabarit sûr
             fiche = explicabilite._gabarit_texte(contexte, style)
-            verif = fidelite.verifier(journal, fiche, autorise, 3)
+            verif = fidelite.verifier(journal, fiche, autorise, version + 2)
     etape("Vérificateur de fidélité", "ok" if verif["ok"] else "fail", "Réponse validée" if verif["ok"] else "Réponse non validée",
           note=f"{verif['total']}/{verif['total']} chiffres retrouvés dans les traces." if verif["ok"] else "", trace=verif["trace"])
+    return fiche, verif
 
-    return {"arret": False, "etapes": etapes, "journal": journal, "persona": persona, "gabarit": gabarit,
-            "symbole": symbole, "demande": d, "alternative": alt, "verdicts": verd, "fiche": fiche,
-            "verif": verif, "contexte": contexte, "source_donnees": source}
+
+def reformuler(res: dict, style: str, on_etape=None) -> dict:
+    """Bouton « plus simple / plus technique » : nouvelle rédaction, VÉRIFIÉE comme la première."""
+    nouvelles = []
+
+    def etape(agent, statut, texte, **details):
+        e = {"agent": agent, "statut": statut, "texte": texte, **details}
+        nouvelles.append(e)
+        if on_etape:
+            on_etape(e)
+
+    res["fiche"], res["verif"] = rediger_verifie(res["contexte"], res["journal"], style, res["autorise"], etape)
+    res["etapes"] = res["etapes"] + nouvelles
+    return res

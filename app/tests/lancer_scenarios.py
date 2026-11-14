@@ -14,7 +14,7 @@ scenarios = yaml.safe_load((Path(__file__).parent / "scenarios_pieges.yaml").rea
 lignes = ["| Scénario | Attendu | Obtenu | Résultat |", "|---|---|---|---|"]
 reussis = 0
 for s in scenarios:
-    r = executer(s["persona"], s["message"], halluciner=s.get("halluciner", False))
+    r = executer(s.get("persona"), s["message"], profil_saisi=s.get("profil_saisi"))
     a = s["attendu"]
     ok = r["arret"] == a["arret"]
     obtenu = "arrêt : " + r["etapes"][-1]["agent"] if r["arret"] else f"{len(r['verdicts']['violees'])} règle(s) violée(s)"
@@ -23,10 +23,6 @@ for s in scenarios:
         if "alternative" in a:
             ok &= (r["alternative"] is not None) == a["alternative"]
             obtenu += ", alternative " + ("trouvée" if r["alternative"] else "absente")
-        if a.get("rejet_detecte"):
-            detecte = any(e["agent"] == "Vérificateur de fidélité" and e["statut"] == "fail" for e in r["etapes"])
-            ok &= detecte and r["verif"]["ok"]
-            obtenu += ", erreur détectée puis corrigée" if detecte else ", erreur NON détectée"
     reussis += ok
     lignes.append(f"| {s['nom']} | {a} | {obtenu} | {'✅' if ok else '❌'} |")
 lignes.append(f"\n**{reussis}/{len(scenarios)} scénarios conformes.**")

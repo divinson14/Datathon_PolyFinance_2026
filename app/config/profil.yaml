@@ -1,0 +1,30 @@
+# Paramètres de l'Agent Profil (choix de l'ÉQUIPE, affichés comme hypothèses). Voir docs/decisions.md.
+
+# Tolérances acceptées = clés de gabarits_risque.yaml. Le système NE DÉDUIT PAS la tolérance : c'est une entrée.
+tolerances: [faible_a_modere, modere, eleve]
+
+# Capital FICTIF utilisé si l'utilisateur n'en saisit pas (sert au rejeu en dollars et aux montants en $).
+capital_par_defaut: 100000
+
+# Niveau d'explication par défaut d'un profil saisi (avance | intermediaire).
+experience_par_defaut: intermediaire
+
+# Horizon minimal (années) jugé cohérent avec chaque tolérance. En dessous : TENSION signalée,
+# jamais corrigée à la place de l'utilisateur. L'âge n'est volontairement pas utilisé (pas de règle fondée sur l'âge).
+horizon_min_coherent:
+  faible_a_modere: 0
+  modere: 3
+  eleve: 7
+
+# Portefeuille supposé d'un profil SAISI, selon la tolérance (mêmes répartitions que les personas de référence).
+portefeuilles_types:
+  faible_a_modere:
+    libelle: "60 % obligations (XBB, ZST), 30 % actions larges (XIU, SPY), 5 % Fortis, 5 % or"
+    poids: {"XBB.TO": 0.30, "ZST.TO": 0.30, "XIU.TO": 0.15, "SPY": 0.15, "FTS.TO": 0.05, "GLD": 0.05}
+  modere:
+    libelle: "55 % actions larges dont 30 % filtrées ESG (ESGV), 35 % obligations, 5 % Fortis, 5 % or"
+    poids: {"ESGV": 0.30, "XIU.TO": 0.25, "XBB.TO": 0.30, "ZST.TO": 0.05, "FTS.TO": 0.05, "GLD": 0.05}
+  eleve:
+    libelle: "55 % FNB d'actions, 20 % titres (NVDA, SHOP, MSFT, JNJ), 10 % crypto, 10 % obligations, 5 % or"
+    poids: {"XIU.TO": 0.15, "SPY": 0.20, "QQQ": 0.20, "XBB.TO": 0.10, "GLD": 0.05, "NVDA": 0.05, "SHOP.TO": 0.05,
+            "MSFT": 0.05, "JNJ": 0.05, "BTC-USD": 0.05, "ETH-USD": 0.05}

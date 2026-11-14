@@ -2,6 +2,7 @@
 MODE=bedrock : le LLM rédige (prompts/explicabilite.md), puis le vérificateur contrôle.
 MODE=local ou réponse illisible : gabarits de texte ci-dessous."""
 import json
+import re
 
 from src import bedrock_client
 from src.config import CALCUL, STYLES, prompt
@@ -28,6 +29,15 @@ def _hypothese(persona: dict, style: str) -> str:
     prefixe = ("Les seuils viennent du gabarit fixé par l'équipe ; ce sont des hypothèses, pas des normes. " if cle == "avance"
                else "Les limites de ton profil sont un choix documenté de l'équipe, pas une vérité absolue. ")
     return prefixe + texte
+
+
+def _ligne_tension(c: dict) -> dict | None:
+    """Tension entre champs du profil (ex. tolérance élevée + horizon court), relevée par l'Agent Profil."""
+    mandat = c.get("mandat") or {}
+    if not mandat.get("tensions"):
+        return None
+    return {"tag": "Hypothèse", "texte": "Point d'attention sur ton profil : " + " ; ".join(mandat["tensions"])
+            + ". Les limites appliquées restent celles de la tolérance indiquée.", "traces": [mandat["trace"]]}
 
 
 def _ligne_manquante(c: dict) -> dict | None:
@@ -61,13 +71,13 @@ def _ligne_bascule(c: dict, style: str) -> dict | None:
     return {"tag": "Fait", "texte": texte, "traces": [b["trace"]]}
 
 
-def _gabarit_texte(c: dict, style: str, halluciner: bool = False) -> dict:
+def _gabarit_texte(c: dict, style: str) -> dict:
     p, g, s = c["persona"], c["gabarit"], c["symbole"]
     nom = c["nom_actif"]
     d, alt, verd = c["demande"], c["alternative"], c["verdicts"]
     m = d["mesures"]
     n = len(verd["violees"])
-    rend = d["rejeu"]["rend"] - (0.031 if halluciner else 0)        # erreur volontaire pour la démo
+    rend = d["rejeu"]["rend"]
     w = pct(d["part"])
     risque = pct(m["parts_risque"].get(s, 0.0))
     lim_risque = pct(g["part_risque_max_par_titre"])
@@ -95,9 +105,9 @@ def _gabarit_texte(c: dict, style: str, halluciner: bool = False) -> dict:
         if d["macro"].get("resume"):
             lignes.append({"tag": "Fait", "texte": f"Contexte : taux directeur de la Banque du Canada en {annee}, {d['macro']['resume']}.",
                            "traces": [d["macro"]["trace"]]})
-        lm = _ligne_manquante(c)
-        if lm:
-            lignes.append(lm)
+        for lm in (_ligne_tension(c), _ligne_manquante(c)):
+            if lm:
+                lignes.append(lm)
         lignes.append({"tag": "Hypothèse", "texte": _hypothese(p, style), "traces": []})
         if alt:
             am = alt["mesures"]
@@ -127,9 +137,9 @@ def _gabarit_texte(c: dict, style: str, halluciner: bool = False) -> dict:
         lignes.append({"tag": "Fait", "texte": f"Si tu avais mis {w} en {nom} début {annee}, tes {money(p['capital'])} seraient devenus environ "
                        f"{money(d['rejeu']['final'])} en fin d'année ({pct(rend)}). Sans {nom}, ils seraient à {money(d['base']['final'])}.",
                        "traces": [d["rejeu"]["trace"], d["base"]["trace"]]})
-        lm = _ligne_manquante(c)
-        if lm:
-            lignes.append(lm)
+        for lm in (_ligne_tension(c), _ligne_manquante(c)):
+            if lm:
+                lignes.append(lm)
         lignes.append({"tag": "Hypothèse", "texte": _hypothese(p, style), "traces": []})
         if alt:
             lignes.append({"tag": "Scénario fictif", "texte": f"Une option plus équilibrée : {pct(alt['part'])} en {nom}. En {annee}, ton portefeuille "
@@ -140,9 +150,9 @@ def _gabarit_texte(c: dict, style: str, halluciner: bool = False) -> dict:
     return {"intro": intro, "lignes": lignes, "limites": limites, "style": style, "auteur": "gabarit"}
 
 
-def rediger(contexte: dict, journal, style: str, halluciner: bool = False, strict: bool = False) -> dict:
+def rediger(contexte: dict, journal, style: str, strict: bool = False) -> dict:
     if not bedrock_client.actif():
-        return _gabarit_texte(contexte, style, halluciner)
+        return _gabarit_texte(contexte, style)
     cle_style = {"avance": "avance", "inter": "intermediaire"}.get(style, style)
     traces = "\n".join(f"{t['id']} | {t['titre']} | entrées : {t['entrees']} | sortie : {t['sortie']}" for t in journal.traces)
     ctx = {"persona": {k: contexte["persona"][k] for k in ("nom", "horizon", "capital", "portefeuille_suppose_libelle")},
@@ -154,7 +164,12 @@ def rediger(contexte: dict, journal, style: str, halluciner: bool = False, stric
              .replace("{traces}", traces).replace("{contexte}", json.dumps(ctx, ensure_ascii=False)))
     if strict:
         texte += "\n\nATTENTION : une version précédente contenait un chiffre absent des traces. Recopie les chiffres EXACTEMENT."
-    rep = bedrock_client.appeler_json(texte, modele="redaction")
+    try:
+        rep = bedrock_client.appeler_json(texte, modele="redaction")
+    except Exception as e:                    # identifiants expirés, réseau, modèle refusé… : la démo continue
+        fiche = _gabarit_texte(contexte, style)
+        fiche["auteur"] = f"gabarit (repli : LLM indisponible, {type(e).__name__})"
+        return fiche
     if not rep or not {"intro", "lignes", "limites"} <= set(rep):
         return _gabarit_texte(contexte, style)
     rep.update(style=style, auteur="llm")
