@@ -13,6 +13,7 @@ load_dotenv(APP / ".env")
 MODE = os.getenv("MODE", "local")                    # local | bedrock
 DONNEES = os.getenv("DONNEES", "local")              # local | s3 | demo
 TRACES = os.getenv("TRACES", "local")                # local | dynamodb
+ANALYSTE = os.getenv("ANALYSTE", "strands")         # strands (agent qui choisit ses outils) | fixe (plan fixe)
 MAX_TENTATIVES = 3
 
 

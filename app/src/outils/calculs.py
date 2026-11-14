@@ -185,3 +185,29 @@ def contexte_macro(journal, agent: str) -> dict:
                       entrees=f"série : {label}", sortie=sortie,
                       source="Banque du Canada, API Valet (data/processed/macro_quotidien.csv)", periode=str(annee))
     return {"trace": tid, "disponible": True, "debut": debut, "fin": fin, "nb_hausses": len(hausses), "resume": sortie}
+
+
+def pire_fenetre_12_mois(journal, poids: dict, libelle: str, agent: str) -> dict:
+    """Pire rendement sur une fenêtre glissante de N jours de bourse (N = fenetre_stress_jours, 252 ≈ 12 mois).
+
+    Chaque fenêtre est rejouée en achat-conservation (comme le rejeu 2022) ; seuls les jours de semaine
+    comptent comme jours de bourse (le prix du vendredi est reporté sur les jours fériés).
+    """
+    n = int(CALCUL["fenetre_stress_jours"])
+    prix, _, _ = charger()
+    p = prix[list(poids)].ffill().dropna()
+    p = p[p.index.dayofweek < 5]
+    if len(p) <= n:
+        tid = journal.log(titre=f"Pire fenêtre de 12 mois · {libelle}", agent=agent, outil="pire_fenetre_12_mois(poids)",
+                          entrees=poids_texte(poids), sortie=f"historique trop court ({len(p)} jours pour une fenêtre de {n})",
+                          source=_source(), periode=f"{p.index.min().date()} → {p.index.max().date()}" if len(p) else "aucune")
+        return {"trace": tid, "rend": None, "debut": None, "fin": None}
+    rend = ((p.shift(-n) / p).mul(pd.Series(poids)).sum(axis=1) - 1).iloc[:-n]
+    debut = rend.idxmin()
+    fin = p.index[p.index.get_loc(debut) + n]
+    pire = float(rend.min())
+    tid = journal.log(titre=f"Pire fenêtre de 12 mois · {libelle}", agent=agent, outil="pire_fenetre_12_mois(poids)",
+                      entrees=f"{poids_texte(poids)} · fenêtre glissante de {n} jours de bourse, achat-conservation",
+                      sortie=f"pire rendement sur 12 mois : {pct(pire)} · du {debut.date()} au {fin.date()}",
+                      source=_source(), periode=f"{p.index.min().date()} → {p.index.max().date()} · {len(rend)} fenêtres")
+    return {"trace": tid, "rend": pire, "debut": str(debut.date()), "fin": str(fin.date())}

@@ -59,6 +59,18 @@ def appeler_json(texte: str, modele: str = "redaction") -> dict | None:
         return None
 
 
+def modele_strands(role: str = "analyste"):
+    """Modèle Bedrock pour un agent Strands (SDK AWS). Identifiants lus dans .env, jamais dans le code.
+    Modèle : BEDROCK_MODELE_<ROLE> ou, à défaut, BEDROCK_MODELE_REDACTION."""
+    from strands.models import BedrockModel
+    model_id = os.getenv(f"BEDROCK_MODELE_{role.upper()}") or os.environ["BEDROCK_MODELE_REDACTION"]
+    params = {"model_id": model_id, "region_name": os.getenv("AWS_REGION", "us-east-1")}
+    if os.getenv("BEDROCK_GUARDRAIL_ID"):
+        params["guardrail_id"] = os.environ["BEDROCK_GUARDRAIL_ID"]
+        params["guardrail_version"] = os.getenv("BEDROCK_GUARDRAIL_VERSION", "DRAFT")
+    return BedrockModel(**params)
+
+
 def guardrail_bloque(texte: str) -> bool:
     """True si Bedrock Guardrails intervient sur l'entrée."""
     if not os.getenv("BEDROCK_GUARDRAIL_ID"):
