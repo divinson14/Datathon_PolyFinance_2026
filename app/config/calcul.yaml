@@ -2,6 +2,7 @@
 frequence: "W-FRI"          # rendements hebdomadaires (clôture du vendredi) : neutralise les calendriers TSX/NYSE/crypto
 annualisation: 52           # semaines par an
 pas_bascule: 0.005          # grille du point de bascule : pas de 0,5 point de pourcentage
+fenetre_stress_jours: 252   # pire fenêtre glissante « 12 mois » = 252 jours de bourse (lun.-ven.)
 annee_scenario: 2022        # rejeu historique (actions ET obligations en baisse)
 serie_taux_directeur: "V39079"   # taux cible du financement à un jour, Banque du Canada
 classes_titres: ["equity", "crypto"]   # soumises aux limites « par titre »

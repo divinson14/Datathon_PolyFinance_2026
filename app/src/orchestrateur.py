@@ -53,14 +53,17 @@ def executer(persona_id: str, message: str, style: str | None = None, halluciner
     d = analyste.analyser_demande(journal, persona, symbole, part, gabarit, univers)
     part_risque = d["mesures"]["parts_risque"].get(symbole, 0.0)
     bascule = d["bascule"]
-    etape("Agent Analyste · tentative 1", "ok", "7 appels d'outils de calcul", calculs=[
+    calculs_1 = [
         (f"Volatilité de {symbole} seul", pct(d["stats"]["vol"]), d["stats"]["trace"]),
         ("Portefeuille actuel · volatilité", pct(d["mesures_base"]["vol"]), d["mesures_base"]["trace"]),
         (f"Demande · part du risque portée par {symbole}", pct(part_risque), d["mesures"]["trace"]),
         ("Demande · volatilité / pire baisse", f"{pct(d['mesures']['vol'])} / {pct(d['mesures']['pire_baisse'])}", d["mesures"]["trace"]),
         (f"Point de bascule · {symbole}", pct(bascule["part_max"]) if bascule["base_conforme"] else "base non conforme", bascule["trace"]),
         ("Contexte des taux", d["macro"]["resume"] or "indisponible", d["macro"]["trace"]),
-        (f"Rejeu 2022 · actuel / demande", f"{pct(d['base']['rend'])} / {pct(d['rejeu']['rend'])}", d["rejeu"]["trace"])])
+        (f"Rejeu 2022 · actuel / demande", f"{pct(d['base']['rend'])} / {pct(d['rejeu']['rend'])}", d["rejeu"]["trace"]),
+        *d["extras"]]                                   # calculs supplémentaires choisis par le modèle
+    etape("Agent Analyste · tentative 1", "ok", f"{len(calculs_1)} appels d'outils de calcul", calculs=calculs_1,
+          **({"note": d["raisonnement"]} if d["raisonnement"] else {}))
 
     # 4. Agent Gouvernance + boucle de correction (vérification indépendante de chaque alternative)
     verd = gouvernance.verifier(journal, d, symbole, gabarit, univers, f"demande {pct(part)} {symbole}", persona)
@@ -68,23 +71,29 @@ def executer(persona_id: str, message: str, style: str | None = None, halluciner
     if verd["violees"]:
         etape("Agent Gouvernance", "fail", f"{len(verd['violees'])} règle(s) violée(s) → correction demandée à l'Analyste",
               regles=verd["regles"], trace=verd["trace"], consigne=verd["consigne"])
-        candidat = gouvernance.premiere_correction(part, bascule)
+        consigne, part_prec = verd["consigne"], part
         for t in range(2, config.MAX_TENTATIVES + 1):
+            candidat = gouvernance.prochaine_part(part_prec, t, bascule)   # repli déterministe si le modèle échoue
             if candidat is None:
                 break
-            a = analyste.analyser_alternative(journal, persona, symbole, candidat, t)
-            etape(f"Agent Analyste · tentative {t}", "ok", f"Alternative testée : {pct(candidat)} en {symbole}", calculs=[
+            a = analyste.analyser_alternative(journal, persona, symbole, candidat, t,
+                                              consigne=consigne, part_precedente=part_prec)
+            choisie = a["part"]                                           # part réellement retenue (≤ part précédente)
+            etape(f"Agent Analyste · tentative {t}", "ok", f"Alternative testée : {pct(choisie)} en {symbole}", calculs=[
                 (f"Part du risque · {symbole}", pct(a["mesures"]["parts_risque"].get(symbole, 0.0)), a["mesures"]["trace"]),
                 ("Volatilité / pire baisse", f"{pct(a['mesures']['vol'])} / {pct(a['mesures']['pire_baisse'])}", a["mesures"]["trace"]),
-                (f"Rejeu 2022 · {pct(candidat)} {symbole}", pct(a["rejeu"]["rend"]), a["rejeu"]["trace"])])
-            v2 = gouvernance.verifier(journal, a, symbole, gabarit, univers, f"alternative {pct(candidat)} {symbole}", persona)
+                (f"Rejeu 2022 · {pct(choisie)} {symbole}", pct(a["rejeu"]["rend"]), a["rejeu"]["trace"]),
+                *a["extras"]], **({"note": a["raisonnement"]} if a["raisonnement"] else {}))
+            v2 = gouvernance.verifier(journal, a, symbole, gabarit, univers, f"alternative {pct(choisie)} {symbole}", persona)
             if not v2["violees"]:
                 a["verdicts"] = v2
                 alt = a
                 etape("Agent Gouvernance", "ok", f"{len(v2['regles'])} règles sur {len(v2['regles'])} respectées", regles=v2["regles"], trace=v2["trace"])
                 break
             etape("Agent Gouvernance", "fail", f"Toujours {len(v2['violees'])} règle(s) violée(s) → nouvelle correction", regles=v2["regles"], trace=v2["trace"])
-            candidat = gouvernance.correction_suivante(candidat)
+            consigne = (f"L'alternative à {pct(choisie)} de {symbole} viole encore : "
+                        + ", ".join(r["regle"] for r in v2["violees"]) + ". Propose une part plus prudente.")
+            part_prec = choisie
         if alt is None:
             raison = (verd["consigne"] if candidat is None else
                       f"aucune alternative conforme trouvée en {config.MAX_TENTATIVES} tentatives")
