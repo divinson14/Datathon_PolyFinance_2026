@@ -22,3 +22,8 @@ def pct(x: float, d: int = 1) -> str:
 
 def poids_texte(poids: dict) -> str:
     return " · ".join(f"{k} {pct(v)}" for k, v in poids.items() if v > 1e-4)
+
+
+def nombre(x: float, d: int = 1) -> str:
+    """Nombre décimal à la française (virgule), sans unité : 2,6 · 0,84."""
+    return f"{x:.{d}f}".replace(".", ",")

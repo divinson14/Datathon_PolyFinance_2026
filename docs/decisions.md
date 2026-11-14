@@ -8,16 +8,49 @@ Notez ici chaque choix au fil de l'eau : c'est la moitié de la documentation te
 - **Verdict** : `{trace, regles: [{regle, limite, valeur, ok}], violees, consigne}`.
 - **Réponse** : `{intro, lignes: [{tag: Fait|Hypothèse|Scénario fictif, texte, traces}], limites, style}`.
 
-## Seuils des gabarits (hypothèses de l'équipe)
-| Gabarit | Poids max/titre | Volatilité max | Perte max | Crypto max | Justification |
-|---|---|---|---|---|---|
-| Faible à modéré | 5 % | 10 % | -15 % | 0 % | À compléter |
-| Modéré | 10 % | 15 % | -25 % | 0 % | À compléter |
-| Élevé | 15 % | 25 % | -35 % | 10 % | À compléter |
+## Méthode de calcul (app/config/calcul.yaml, app/src/outils/calculs.py)
+- Prix : `adj_close` (dividendes et fractionnements déjà intégrés, ne rien réappliquer), convertis en CAD
+  avec le taux Banque du Canada reporté sur les jours sans taux (fériés, fins de semaine crypto).
+- Rendements **hebdomadaires** (clôture du vendredi), 261 semaines du 2021-11-19 au 2026-11-13 : neutralise
+  les calendriers TSX / NYSE / crypto 7 j/7. Annualisation × 52.
+- Portefeuille à **poids constants** (rééquilibré chaque semaine) pour volatilité, pire baisse et part du risque ;
+  le rejeu 2022 est en achat-conservation (plus parlant en dollars). Les deux hypothèses sont affichées.
+- **Part du risque** = contribution d'Euler à la variance : w_i·(Σw)_i / w'Σw (somme = 100 %).
+- **Paris indépendants** = ratio de participation des valeurs propres de diag(w)·Σ·diag(w) : (Σλ)²/Σλ².
+  N lignes indépendantes de même risque → N ; un seul facteur dominant → 1.
+  ⚠️ Cette définition ne redonne pas le « 1,9 » de l'exploration (portefeuille Amira à parts égales : 2,6) : citer 2,6.
+- **Point de bascule** : grille de 0 à 100 % par pas de 0,5 point ; part maximale de l'actif demandé (le reste
+  du portefeuille est réduit proportionnellement) qui respecte toutes les règles, et première règle franchie.
+- Macro : seules les séries **quotidiennes** sont copiées dans `processed/macro_quotidien.csv`. IPC et chômage
+  (datés au mois de référence, publiés des semaines plus tard) sont exclus pour ne pas « voir le futur ».
+- Correction des données : le report du taux de change se faisait sur la table longue (mélange possible entre symboles) ;
+  il est maintenant fait sur le calendrier civil complet avant la fusion.
+- CNQ.TO : faux « split » 1,021 le 2022-08-22 (probable distribution spéciale) déjà intégré par Yahoo dans `adj_close`. Effet ≈ 2 %, non corrigé, documenté.
 
-## Portefeuilles supposés
-Le persona ne donne pas son portefeuille actuel → hypothèse affichée à l'utilisateur.
-⚠️ XIU et XBB sont des exemples : remplacez-les par des symboles présents dans `assets_universe.csv`.
+## Seuils des gabarits (hypothèses de l'équipe, app/config/gabarits_risque.yaml)
+« Titre » = action individuelle ou crypto. Les FNB diversifiés ne sont pas soumis aux limites par titre.
+
+| Gabarit | Poids max/titre | Part du risque max/titre | Vol. max | Pire baisse max | Oblig. min | Crypto max | Paris min |
+|---|---|---|---|---|---|---|---|
+| Faible à modéré (Robert) | 10 % | 20 % | 8 % | -12 % | 40 % | 0 % | — |
+| Modéré (Mateo) | 15 % | 25 % | 12 % | -20 % | 20 % | 0 % | — |
+| Élevé (Amira) | 25 % | 30 % | 25 % | -45 % | 0 % | 10 % | 2,0 |
+
+Justification à compléter (NT). Contrainte vérifiée par un test : chaque portefeuille supposé respecte son propre gabarit.
+
+## Portefeuilles supposés (hypothèses affichées à l'utilisateur, mesures sur données réelles)
+| Persona | Portefeuille | Vol. | Pire baisse | Paris indép. |
+|---|---|---|---|---|
+| Robert | XBB 30, ZST 30, XIU 15, SPY 15, FTS 5, GLD 5 | 5,2 % | -9,2 % | 2,5 |
+| Mateo | ESGV 30, XIU 25, XBB 30, ZST 5, FTS 5, GLD 5 | 8,4 % | -14,3 % | 1,7 |
+| Amira | XIU 15, SPY 20, QQQ 20, XBB 10, GLD 5, NVDA/SHOP/MSFT/JNJ 5 chacun, BTC 5, ETH 5 | 16,2 % | -30,2 % | 2,6 |
+
+Points de bascule obtenus (TSLA) : Robert 3 %, Mateo 6 %, Amira 13 %. Règle limitante dans les trois cas : part du risque par titre.
+Robert à 30 % TSLA : TSLA porte 89,5 % du risque. Crypto : bascule à 0 % pour Robert et Mateo (interdite) et pour Amira (déjà au plafond de 10 %).
+
+## ESG (Mateo)
+`data/raw/added/esg_controverses.csv` est encore vide : tous les titres sont « non évalué ». Le moteur ne les déclare
+**pas** conformes : il les signale comme information manquante (UI ⚠️, ligne dans l'explication). À remplir (NT), puis lancer `02_construire_esg.py`.
 
 ## Services AWS
 | Service | Pourquoi |

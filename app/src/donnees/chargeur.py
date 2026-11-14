@@ -10,6 +10,25 @@ from src.config import DONNEES, RACINE_REPO
 
 DOSSIER_LOCAL = RACINE_REPO / "data" / "processed"
 
+# Univers FICTIF de démonstration : mêmes symboles et classes que le jeu de départ,
+# paramètres inventés (volatilité, rendement, sensibilité au facteur commun).
+#            symbole     nom                         classe          devise  secteur                     vol   rend  beta
+_DEMO = [("XIU.TO", "FNB actions canadiennes", "etf_equity", "CAD", "Broad market (Canada)", 0.14, 0.07, 0.9),
+         ("SPY", "FNB S&P 500", "etf_equity", "USD", "Broad market (U.S.)", 0.16, 0.09, 1.0),
+         ("QQQ", "FNB Nasdaq-100", "etf_equity", "USD", "Broad market (U.S. growth)", 0.22, 0.11, 1.0),
+         ("ESGV", "FNB ESG É.-U.", "etf_equity", "USD", "Broad market (U.S., ESG)", 0.17, 0.09, 1.0),
+         ("XBB.TO", "FNB obligations canadiennes", "etf_bond", "CAD", "Bonds (Canada)", 0.06, 0.02, 0.2),
+         ("ZST.TO", "FNB obligations ultra-courtes", "etf_bond", "CAD", "Bonds (Canada ultra short)", 0.01, 0.03, 0.0),
+         ("GLD", "FNB or", "etf_commodity", "USD", "Gold", 0.14, 0.05, 0.1),
+         ("FTS.TO", "Fortis", "equity", "CAD", "Utilities", 0.16, 0.05, 0.4),
+         ("JNJ", "Johnson & Johnson", "equity", "USD", "Health Care", 0.17, 0.04, 0.4),
+         ("MSFT", "Microsoft", "equity", "USD", "Information Technology", 0.26, 0.12, 0.9),
+         ("NVDA", "NVIDIA", "equity", "USD", "Information Technology", 0.50, 0.30, 1.0),
+         ("SHOP.TO", "Shopify", "equity", "CAD", "Information Technology", 0.55, 0.10, 0.9),
+         ("TSLA", "Tesla", "equity", "USD", "Consumer Discretionary", 0.60, 0.15, 0.8),
+         ("BTC-USD", "Bitcoin", "crypto", "USD", "Crypto asset", 0.55, 0.20, 0.5),
+         ("ETH-USD", "Ether", "crypto", "USD", "Crypto asset", 0.70, 0.15, 0.5)]
+
 
 def _lire(nom: str) -> pd.DataFrame:
     if DONNEES == "s3":
@@ -24,32 +43,31 @@ def _demo():
     """Données FICTIVES pour développer avant que data/ soit prêt. Jamais pour la démo finale."""
     rng = np.random.default_rng(42)
     dates = pd.bdate_range("2021-11-12", "2026-11-12")
-    actifs = ["TSLA", "XIU", "XBB"]
-    vols = np.array([0.55, 0.12, 0.06])
-    corr = np.array([[1, 0.45, 0.10], [0.45, 1, 0.30], [0.10, 0.30, 1]])
-    chol = np.linalg.cholesky(corr)
-    derive = {2022: np.array([-1.0, 0.0, -0.08])}
-    rend = []
-    for d in dates:
-        mu = derive.get(d.year, np.array([0.25, 0.08, 0.02]))
-        z = chol @ rng.standard_normal(3)
-        rend.append(mu / 252 + vols / np.sqrt(252) * z)
-    prix = pd.DataFrame(np.exp(np.cumsum(rend, axis=0)) * [300, 30, 30], index=dates, columns=actifs)
+    vols = np.array([a[5] for a in _DEMO])
+    mu = np.array([a[6] for a in _DEMO])
+    beta = np.array([a[7] for a in _DEMO])
+    facteur = rng.standard_normal(len(dates))
+    propre = rng.standard_normal((len(dates), len(_DEMO)))
+    poids_f = np.clip(beta * 0.7, 0, 0.95)                       # part de variance liée au facteur commun
+    z = facteur[:, None] * np.sqrt(poids_f) + propre * np.sqrt(1 - poids_f)
+    annee_2022 = (dates.year == 2022)[:, None]
+    derive = np.where(annee_2022, -0.25 * beta - 0.05, mu)       # 2022 : tout baisse, surtout le risqué
+    rend = derive / 252 + vols / np.sqrt(252) * z
+    prix = pd.DataFrame(100 * np.exp(np.cumsum(rend, axis=0)), index=dates, columns=[a[0] for a in _DEMO])
     prix.index.name = "date"
-    univers = pd.DataFrame({
-        "symbole": actifs,
-        "nom": ["Tesla", "FNB actions canadiennes (exemple)", "FNB obligations canadiennes (exemple)"],
-        "classe": ["Action", "FNB actions", "FNB obligations"],
-        "devise": ["USD", "CAD", "CAD"], "secteur": ["Consommation discrétionnaire", "Diversifié", "Obligations"],
-        "crypto": [False, False, False],
-    })
+    univers = pd.DataFrame([a[:5] for a in _DEMO], columns=["symbole", "nom", "classe", "devise", "secteur"])
+    univers["crypto"] = univers["classe"].eq("crypto")
     return prix, univers
+
+
+def _sans_donnees_reelles() -> bool:
+    return DONNEES == "demo" or (DONNEES == "local" and not (DOSSIER_LOCAL / "prix_cad_alignes.csv").exists())
 
 
 @lru_cache(maxsize=1)
 def charger():
     """Retourne (prix_cad, univers, source_libelle)."""
-    if DONNEES == "demo" or (DONNEES == "local" and not (DOSSIER_LOCAL / "prix_cad_alignes.csv").exists()):
+    if _sans_donnees_reelles():
         prix, univers = _demo()
         return prix, univers, "DONNÉES FICTIVES de démonstration (data/processed/ absent)"
     prix = _lire("prix_cad_alignes.csv")
@@ -57,3 +75,27 @@ def charger():
     prix = prix.set_index("date").sort_index()
     univers = _lire("univers_enrichi.csv")
     return prix, univers, "data/processed/prix_cad_alignes.csv (clôture ajustée, en CAD)"
+
+
+@lru_cache(maxsize=1)
+def charger_macro() -> pd.DataFrame | None:
+    """Séries macro QUOTIDIENNES (date, series_id, value, label, source). None si indisponibles."""
+    if _sans_donnees_reelles():
+        return None
+    try:
+        macro = _lire("macro_quotidien.csv")
+    except Exception:                       # fichier absent (local) ou clé absente (S3)
+        return None
+    macro["date"] = pd.to_datetime(macro["date"])
+    return macro
+
+
+@lru_cache(maxsize=1)
+def charger_esg() -> pd.DataFrame | None:
+    """Drapeaux ESG (symbole, controverse, source…) produits par data/scripts/02. None si absents."""
+    if _sans_donnees_reelles():
+        return None
+    try:
+        return _lire("esg_drapeaux.csv")
+    except Exception:
+        return None

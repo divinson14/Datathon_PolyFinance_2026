@@ -61,7 +61,8 @@ def afficher_etape(e, conteneur):
             st.dataframe(pd.DataFrame(e["calculs"], columns=["Calcul", "Résultat", "Trace"]), hide_index=True, width="stretch")
         if "regles" in e:
             st.dataframe(pd.DataFrame([{"Règle": r["regle"], "Limite": r["limite"], "Valeur": r["valeur"],
-                                        "Statut": "✅ Respecté" if r["ok"] else "❌ Violé"} for r in e["regles"]]),
+                                        "Statut": ("⚠️ Information manquante" if r.get("manquant") else
+                                                   "✅ Respecté" if r["ok"] else "❌ Violé")} for r in e["regles"]]),
                          hide_index=True, width="stretch")
         if e.get("consigne"):
             st.caption(f"Correction envoyée à l'Analyste : « {e['consigne']} »")
@@ -81,9 +82,14 @@ def afficher_reponse(res, index):
     for l in f["lignes"]:
         traces = "".join(f"<span class='tr'>{t}</span>" for t in l.get("traces", []))
         st.markdown(f"<span class='tag {CLASSES.get(l['tag'], 'fait')}'>{l['tag']}</span>{l['texte']} {traces}", unsafe_allow_html=True)
-    valeurs = {"Portefeuille actuel": d["base"]["valeurs"], f"Demande {pct(d['part'], 0)}": d["rejeu"]["valeurs"]}
+    # La thèse en un graphique : part des dollars vs part du risque, ligne par ligne
+    m = d["mesures"]
+    st.caption("Part des dollars vs part du risque (demande analysée)")
+    st.bar_chart(pd.DataFrame({"Part des dollars": pd.Series(m["poids"]), "Part du risque": pd.Series(m["parts_risque"])}),
+                 stack=False, horizontal=True)
+    valeurs = {"Portefeuille actuel": d["base"]["valeurs"], f"Demande {pct(d['part'])}": d["rejeu"]["valeurs"]}
     if alt:
-        valeurs[f"Alternative {pct(alt['part'], 0)}"] = alt["rejeu"]["valeurs"]
+        valeurs[f"Alternative {pct(alt['part'])}"] = alt["rejeu"]["valeurs"]
     st.caption(f"Ce que 2022 aurait fait à {money(res['persona']['capital'])} (valeur en fin de mois)")
     st.line_chart(pd.DataFrame(valeurs, index=["début"] + [f"{m:02d}" for m in range(1, len(d['base']['valeurs']))]))
     st.info(f"**Limites.** {f['limites']}")

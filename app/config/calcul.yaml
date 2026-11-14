@@ -1,0 +1,8 @@
+# Paramètres de calcul (choix méthodologiques de l'équipe, documentés dans docs/decisions.md).
+frequence: "W-FRI"          # rendements hebdomadaires (clôture du vendredi) : neutralise les calendriers TSX/NYSE/crypto
+annualisation: 52           # semaines par an
+pas_bascule: 0.005          # grille du point de bascule : pas de 0,5 point de pourcentage
+annee_scenario: 2022        # rejeu historique (actions ET obligations en baisse)
+serie_taux_directeur: "V39079"   # taux cible du financement à un jour, Banque du Canada
+classes_titres: ["equity", "crypto"]   # soumises aux limites « par titre »
+classe_obligations: "etf_bond"

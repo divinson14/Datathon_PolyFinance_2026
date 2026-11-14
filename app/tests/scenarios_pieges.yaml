@@ -24,3 +24,15 @@
   message: "Je pense mettre 30 % dans Tesla."
   halluciner: true
   attendu: {arret: false, verif_ok: true, rejet_detecte: true}
+- nom: Robert veut 3 % dans Tesla (sous le point de bascule)
+  persona: robert
+  message: "Je pense mettre 3 % dans Tesla."
+  attendu: {arret: false, regles_violees_min: 0, alternative: false}
+- nom: Robert veut 5 % de Bitcoin (crypto interdite, aucune alternative)
+  persona: robert
+  message: "Et si je mettais 5 % en Bitcoin ?"
+  attendu: {arret: false, regles_violees_min: 1, alternative: false}
+- nom: Mateo veut 10 % dans Tesla (ESG non évalué signalé)
+  persona: mateo
+  message: "Je veux mettre 10 % de mon portefeuille dans Tesla, mais je tiens aux critères ESG."
+  attendu: {arret: false, regles_violees_min: 1, alternative: true}

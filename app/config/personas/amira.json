@@ -1,10 +1,31 @@
 {
-  "id": "amira", "nom": "Amira", "age": 26, "metier": "Ingénieure logicielle",
-  "risque": "eleve", "horizon": "15 ans et plus", "capital": 50000,
+  "id": "amira",
+  "nom": "Amira",
+  "age": 26,
+  "metier": "Ingénieure logicielle",
+  "risque": "eleve",
+  "horizon": "15 ans et plus",
+  "capital": 50000,
   "niveau_experience": "intermediaire",
   "objectif": "Faire croître son capital à long terme",
-  "preferences": ["IA et technologies émergentes", "Ouverte à une forte volatilité", "Veut rester diversifiée"],
-  "portefeuille_suppose": {"XIU": 0.8, "XBB": 0.2},
-  "portefeuille_suppose_libelle": "80 % actions / 20 % obligations",
+  "preferences": [
+    "IA et technologies émergentes",
+    "Ouverte à une forte volatilité",
+    "Veut rester diversifiée"
+  ],
+  "portefeuille_suppose": {
+    "XIU.TO": 0.15,
+    "SPY": 0.2,
+    "QQQ": 0.2,
+    "XBB.TO": 0.1,
+    "GLD": 0.05,
+    "NVDA": 0.05,
+    "SHOP.TO": 0.05,
+    "MSFT": 0.05,
+    "JNJ": 0.05,
+    "BTC-USD": 0.05,
+    "ETH-USD": 0.05
+  },
+  "portefeuille_suppose_libelle": "55 % FNB d'actions, 20 % titres (NVDA, SHOP, MSFT, JNJ), 10 % crypto, 10 % obligations, 5 % or",
   "message_exemple": "Je crois beaucoup à Tesla et aux technologies émergentes. Je pense mettre 30 % de mon portefeuille dedans."
 }

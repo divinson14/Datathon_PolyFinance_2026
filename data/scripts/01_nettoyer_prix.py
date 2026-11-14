@@ -44,9 +44,11 @@ u["crypto"] = u["classe"].astype(str).str.lower().str.contains("crypto")
 u[["symbole", "nom", "classe", "devise", "secteur", "crypto"]].to_csv(PROCESSED / "univers_enrichi.csv", index=False)
 
 # --- Conversion en CAD ---
+# Taux reporté sur TOUS les jours civils (fériés canadiens, fins de semaine pour la crypto)
+# AVANT la fusion : un ffill sur la table longue mélangerait les symboles.
 taux = fx.set_index(f_date)[f_val].sort_index()
+taux = taux.reindex(pd.date_range(taux.index.min(), prix[c_date].max(), freq="D")).ffill()
 prix = prix.merge(taux.rename("usdcad"), left_on=c_date, right_index=True, how="left")
-prix["usdcad"] = prix["usdcad"].ffill()
 est_usd = prix[c_dev].astype(str).str.upper().eq("USD")
 prix["prix_cad"] = prix[c_adj].where(~est_usd, prix[c_adj] * prix["usdcad"])
 
@@ -67,4 +69,11 @@ journal.to_csv(PROCESSED / "journal_nettoyage.csv", index=False)
 
 large.index.name = "date"
 large.to_csv(PROCESSED / "prix_cad_alignes.csv")
+# --- Macro : copie filtrée (seules les séries quotidiennes, sans décalage de publication) ---
+macro = lire_csv("macro_rates.csv")
+quotidiennes = ["V39079", "BD.CDN.2YR.DQ.YLD", "BD.CDN.10YR.DQ.YLD", "DFF", "DGS2", "DGS10"]
+macro[macro["series_id"].isin(quotidiennes)].to_csv(PROCESSED / "macro_quotidien.csv", index=False)
+# Les séries mensuelles (IPC, chômage) sont datées au mois de référence et publiées des semaines
+# plus tard : on ne les copie pas, pour ne jamais « voir le futur » dans une simulation.
+
 print(f"OK : {large.shape[0]} jours × {large.shape[1]} actifs → processed/prix_cad_alignes.csv")

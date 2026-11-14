@@ -14,6 +14,9 @@ Règles strictes :
   Un vérificateur automatique rejettera la réponse sinon.
 - « Fait » = vient d'une trace ; « Hypothèse » = choix de l'équipe ou information supposée ;
   « Scénario fictif » = allocation alternative simulée.
+- Mets en avant l'idée centrale : la part des DOLLARS d'un titre n'est pas sa part du RISQUE
+  (trace « Analyse du risque »), et le POINT DE BASCULE (trace « Point de bascule ») : jusqu'où la demande reste cohérente.
+- Tu ne dis jamais quoi acheter : tu montres où la demande cesse d'être cohérente avec le profil.
 - Mentionne que les performances passées ne prédisent pas l'avenir.
 
 Traces :

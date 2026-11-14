@@ -3,7 +3,7 @@ et publie chaque étape via on_etape (l'interface l'affiche au fur et à mesure)
 from src import config
 from src.agents import analyste, explicabilite, gouvernance, profil
 from src.donnees.chargeur import charger
-from src.formatage import pct
+from src.formatage import nombre, pct
 from src.traces.journal import Journal
 from src.verif import fidelite
 
@@ -40,42 +40,55 @@ def executer(persona_id: str, message: str, style: str | None = None, halluciner
         etape("Agent Profil", "warn", "Information manquante : quelle part du portefeuille souhaites-tu y mettre ? Je ne la devine pas à ta place.")
         return arret()
     symbole, part = dem["symbole"], float(dem["part"])
-    etape("Agent Profil", "warn", "Demande comprise · 1 information manquante remplacée par une hypothèse affichée",
-          mandat=[("Actif demandé", symbole), ("Part demandée", pct(part, 0)), ("Gabarit appliqué", f"« {gabarit['label']} » (config/)"),
-                  ("Seuils", f"poids max {pct(gabarit['poids_max_par_titre'])} · vol. max {pct(gabarit['volatilite_max'])} · perte max {pct(gabarit['perte_max_toleree'])}"),
-                  ("Hypothèse", f"portefeuille actuel {persona['portefeuille_suppose_libelle']}")])
+    g = gabarit
+    seuils = (f"poids max/titre {pct(g['poids_max_par_titre'])} · part du risque max/titre {pct(g['part_risque_max_par_titre'])} · "
+              f"vol. max {pct(g['volatilite_max'])} · pire baisse max {pct(g['pire_baisse_max'])} · "
+              f"obligations min {pct(g['obligations_min'])} · crypto max {pct(g['crypto_max'])}")
+    etape("Agent Profil", "warn", "Demande comprise · le portefeuille actuel est une hypothèse affichée",
+          mandat=[("Actif demandé", symbole), ("Part demandée", pct(part)), ("Gabarit appliqué", f"« {g['label']} » (config/)"),
+                  ("Seuils (hypothèses de l'équipe)", seuils),
+                  ("Hypothèse", f"portefeuille actuel : {persona['portefeuille_suppose_libelle']}")])
 
     # 3. Agent Analyste, tentative 1
-    d = analyste.analyser_demande(journal, persona, symbole, part)
-    etape("Agent Analyste · tentative 1", "ok", "5 appels d'outils de calcul", calculs=[
-        (f"Volatilité de {symbole}", pct(d["stats"]["vol"]), d["stats"]["trace"]),
-        ("Contexte des taux 2022", "1re hausse le 2 mars", d["macro"]["trace"]),
-        ("Rejeu 2022 · portefeuille actuel", pct(d["base"]["rend"]), d["base"]["trace"]),
-        (f"Rejeu 2022 · demande {pct(part, 0)}", pct(d["rejeu"]["rend"]), d["rejeu"]["trace"]),
-        (f"Volatilité · demande {pct(part, 0)}", pct(d["vol"]["vol"]), d["vol"]["trace"])])
+    d = analyste.analyser_demande(journal, persona, symbole, part, gabarit, univers)
+    part_risque = d["mesures"]["parts_risque"].get(symbole, 0.0)
+    bascule = d["bascule"]
+    etape("Agent Analyste · tentative 1", "ok", "7 appels d'outils de calcul", calculs=[
+        (f"Volatilité de {symbole} seul", pct(d["stats"]["vol"]), d["stats"]["trace"]),
+        ("Portefeuille actuel · volatilité", pct(d["mesures_base"]["vol"]), d["mesures_base"]["trace"]),
+        (f"Demande · part du risque portée par {symbole}", pct(part_risque), d["mesures"]["trace"]),
+        ("Demande · volatilité / pire baisse", f"{pct(d['mesures']['vol'])} / {pct(d['mesures']['pire_baisse'])}", d["mesures"]["trace"]),
+        (f"Point de bascule · {symbole}", pct(bascule["part_max"]) if bascule["base_conforme"] else "base non conforme", bascule["trace"]),
+        ("Contexte des taux", d["macro"]["resume"] or "indisponible", d["macro"]["trace"]),
+        (f"Rejeu 2022 · actuel / demande", f"{pct(d['base']['rend'])} / {pct(d['rejeu']['rend'])}", d["rejeu"]["trace"])])
 
-    # 4. Agent Gouvernance + boucle de correction
-    verd = gouvernance.verifier(journal, d, symbole, gabarit, univers, f"demande {pct(part, 0)} {symbole}")
+    # 4. Agent Gouvernance + boucle de correction (vérification indépendante de chaque alternative)
+    verd = gouvernance.verifier(journal, d, symbole, gabarit, univers, f"demande {pct(part)} {symbole}", persona)
     alt = None
     if verd["violees"]:
         etape("Agent Gouvernance", "fail", f"{len(verd['violees'])} règle(s) violée(s) → correction demandée à l'Analyste",
               regles=verd["regles"], trace=verd["trace"], consigne=verd["consigne"])
-        candidat = gouvernance.prochaine_part(part, gabarit, premiere_correction=True)
+        candidat = gouvernance.premiere_correction(part, bascule)
         for t in range(2, config.MAX_TENTATIVES + 1):
+            if candidat is None:
+                break
             a = analyste.analyser_alternative(journal, persona, symbole, candidat, t)
-            etape(f"Agent Analyste · tentative {t}", "ok", f"Alternative testée : {pct(candidat, 0)} en {symbole}", calculs=[
-                (f"Rejeu 2022 · {pct(candidat, 0)} {symbole}", pct(a["rejeu"]["rend"]), a["rejeu"]["trace"]),
-                (f"Volatilité · {pct(candidat, 0)} {symbole}", pct(a["vol"]["vol"]), a["vol"]["trace"])])
-            v2 = gouvernance.verifier(journal, a, symbole, gabarit, univers, f"alternative {pct(candidat, 0)} {symbole}")
+            etape(f"Agent Analyste · tentative {t}", "ok", f"Alternative testée : {pct(candidat)} en {symbole}", calculs=[
+                (f"Part du risque · {symbole}", pct(a["mesures"]["parts_risque"].get(symbole, 0.0)), a["mesures"]["trace"]),
+                ("Volatilité / pire baisse", f"{pct(a['mesures']['vol'])} / {pct(a['mesures']['pire_baisse'])}", a["mesures"]["trace"]),
+                (f"Rejeu 2022 · {pct(candidat)} {symbole}", pct(a["rejeu"]["rend"]), a["rejeu"]["trace"])])
+            v2 = gouvernance.verifier(journal, a, symbole, gabarit, univers, f"alternative {pct(candidat)} {symbole}", persona)
             if not v2["violees"]:
                 a["verdicts"] = v2
                 alt = a
                 etape("Agent Gouvernance", "ok", f"{len(v2['regles'])} règles sur {len(v2['regles'])} respectées", regles=v2["regles"], trace=v2["trace"])
                 break
             etape("Agent Gouvernance", "fail", f"Toujours {len(v2['violees'])} règle(s) violée(s) → nouvelle correction", regles=v2["regles"], trace=v2["trace"])
-            candidat = gouvernance.prochaine_part(candidat, gabarit, premiere_correction=False)
+            candidat = gouvernance.correction_suivante(candidat)
         if alt is None:
-            etape("Orchestrateur", "warn", f"Aucune alternative conforme trouvée en {config.MAX_TENTATIVES} tentatives : le système le dit honnêtement.")
+            raison = (verd["consigne"] if candidat is None else
+                      f"aucune alternative conforme trouvée en {config.MAX_TENTATIVES} tentatives")
+            etape("Orchestrateur", "warn", f"Pas d'alternative proposée : {raison} Le système le dit honnêtement.")
     else:
         etape("Agent Gouvernance", "ok", "La demande respecte toutes les règles du mandat", regles=verd["regles"], trace=verd["trace"])
 
@@ -83,9 +96,9 @@ def executer(persona_id: str, message: str, style: str | None = None, halluciner
     nom_actif = str(univers.loc[univers["symbole"] == symbole, "nom"].iloc[0])
     contexte = {"persona": persona, "gabarit": gabarit, "symbole": symbole, "nom_actif": nom_actif,
                 "demande": d, "alternative": alt, "verdicts": verd}
-    autorise = (f"{persona['capital']} {persona['horizon']} {persona['portefeuille_suppose_libelle']} 2022 "
-                f"{pct(gabarit['poids_max_par_titre'])} {pct(gabarit['volatilite_max'])} {pct(gabarit['perte_max_toleree'])} "
-                f"{len(verd['regles'])}")
+    autorise = " ".join([str(persona["capital"]), persona["horizon"], persona["portefeuille_suppose_libelle"],
+                         str(config.CALCUL["annee_scenario"]), str(len(verd["regles"])), seuils,
+                         nombre(g["paris_effectifs_min"]) if g.get("paris_effectifs_min") is not None else ""])
     fiche = explicabilite.rediger(contexte, journal, style, halluciner=halluciner)
     etape("Agent Explicabilité", "ok", f"Réponse rédigée au niveau « {'avancé' if style == 'avance' else 'intermédiaire'} »",
           note=f"{len(fiche['lignes'])} affirmations étiquetées (Fait / Hypothèse / Scénario fictif), reliées à leurs traces.")
