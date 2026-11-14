@@ -60,7 +60,9 @@ cryptos = set(u.loc[u["crypto"], "symbole"])
 non_crypto = [s for s in large.columns if s not in cryptos]
 jours_bourse = large[non_crypto].dropna(how="all").index
 avant = large.loc[jours_bourse].isna().sum()          # trous sur les seuls jours de bourse
-large = large.ffill(limit=3).loc[jours_bourse]
+# On réduit AVANT le report : sinon les fins de semaine (lignes crypto) comptent dans la limite
+# et un congé de 2 jours de bourse collé à un week-end (ex. Noël TSX) dépasse les 3 jours.
+large = large.loc[jours_bourse].ffill(limit=3)
 apres = large.isna().sum()
 
 journal = pd.DataFrame({"symbole": large.columns, "valeurs_manquantes_avant": avant.reindex(large.columns).values,
