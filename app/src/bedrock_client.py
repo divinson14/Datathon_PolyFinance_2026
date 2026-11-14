@@ -27,7 +27,7 @@ def appeler(texte: str, modele: str = "redaction", max_tokens: int = 1500) -> st
     params = {
         "modelId": model_id,
         "messages": [{"role": "user", "content": [{"text": texte}]}],
-        "inferenceConfig": {"maxTokens": max_tokens, "temperature": 0},
+        "inferenceConfig": {"maxTokens": max_tokens},
     }
     if os.getenv("BEDROCK_GUARDRAIL_ID"):
         params["guardrailConfig"] = {"guardrailIdentifier": os.environ["BEDROCK_GUARDRAIL_ID"],
@@ -49,10 +49,10 @@ def appeler_json(texte: str, modele: str = "redaction") -> dict | None:
 
 def modele_strands(role: str = "analyste"):
     """Modèle Bedrock pour un agent Strands (SDK AWS). Identifiants lus dans .env, jamais dans le code.
-    Modèle : BEDROCK_MODELE_<ROLE> ou, à défaut, BEDROCK_MODELE_REDACTION. Température 0 (reproductible)."""
+    Modèle : BEDROCK_MODELE_<ROLE> ou, à défaut, BEDROCK_MODELE_REDACTION."""
     from strands.models import BedrockModel
     model_id = os.getenv(f"BEDROCK_MODELE_{role.upper()}") or os.environ["BEDROCK_MODELE_REDACTION"]
-    params = {"model_id": model_id, "region_name": os.getenv("AWS_REGION", "us-east-1"), "temperature": 0}
+    params = {"model_id": model_id, "region_name": os.getenv("AWS_REGION", "us-east-1")}
     if os.getenv("BEDROCK_GUARDRAIL_ID"):
         params["guardrail_id"] = os.environ["BEDROCK_GUARDRAIL_ID"]
         params["guardrail_version"] = os.getenv("BEDROCK_GUARDRAIL_VERSION", "DRAFT")
