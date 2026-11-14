@@ -28,3 +28,11 @@ def correction_suivante(part_actuelle: float) -> float | None:
     """Filet de sécurité si la vérification indépendante échoue : on recule d'un pas de la grille."""
     suivante = round(part_actuelle - CALCUL["pas_bascule"], 6)
     return suivante if suivante > 0 else None
+
+
+def prochaine_part(part_precedente: float, tentative: int, bascule: dict) -> float | None:
+    """Part de repli déterministe pour la tentative `tentative` (2 = première correction).
+    Sert aussi quand la part proposée par le modèle est illisible ou non plus prudente. None = aucune part."""
+    if tentative <= 2:
+        return premiere_correction(part_precedente, bascule)
+    return correction_suivante(part_precedente)

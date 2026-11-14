@@ -10,9 +10,9 @@ import pandas as pd
 import streamlit as st
 
 from src import config
-from src.agents import explicabilite
+from src.agents import explicabilite, profil
 from src.formatage import money, pct
-from src.orchestrateur import executer
+from src.orchestrateur import executer, reformuler
 
 st.set_page_config(page_title="AlphaForge AI", layout="wide")
 st.markdown("""<style>
@@ -25,6 +25,7 @@ ICONES = {"ok": "✅", "warn": "⚠️", "fail": "❌"}
 CLASSES = {"Fait": "fait", "Hypothèse": "hyp", "Scénario fictif": "scen"}
 etat = st.session_state
 etat.setdefault("persona", None)
+etat.setdefault("profil_saisi", None)
 etat.setdefault("messages", [])
 etat.setdefault("etapes", [])
 
@@ -49,6 +50,24 @@ def ecran_profil():
                 st.rerun()
             if a_faire:
                 st.caption("Bientôt : " + a_faire)
+    with st.expander("…ou décris ton propre profil (5 champs, fictif)"):
+        with st.form("formulaire_profil"):
+            c1, c2 = st.columns(2)
+            age = c1.number_input("Âge", min_value=18, max_value=100, value=None, placeholder="non précisé")
+            horizon = c2.number_input("Horizon de placement (années)", min_value=1, max_value=50, value=None, placeholder="non précisé")
+            libelles = {t: config.GABARITS[t]["label"] for t in config.PROFIL["tolerances"]}
+            tolerance = c1.selectbox("Tolérance au risque", list(libelles), format_func=libelles.get, index=None,
+                                     placeholder="à choisir (jamais déduite)")
+            capital = c2.number_input("Capital fictif ($)", min_value=1000, step=1000, value=None,
+                                      placeholder=f"{config.PROFIL['capital_par_defaut']:,} par défaut".replace(",", " "))
+            objectif = st.text_input("Objectif", placeholder="ex. faire croître mon capital à long terme")
+            esg = st.checkbox("J'exclus les entreprises liées à des controverses ESG importantes")
+            if st.form_submit_button("Continuer avec ce profil", type="primary"):
+                etat.persona = "personnalise"
+                etat.profil_saisi = {"age": age, "tolerance": tolerance, "horizon_ans": horizon, "objectif": objectif,
+                                     "esg": esg, "capital": capital}
+                etat.messages, etat.etapes = [], []
+                st.rerun()
 
 
 # ---------- Panneau droit : une carte par étape ----------
@@ -78,6 +97,9 @@ def afficher_reponse(res, index):
         st.markdown(res["etapes"][-1]["texte"])
         return
     f, d, alt = res["fiche"], res["demande"], res["alternative"]
+    auteur = f.get("auteur", "gabarit")
+    st.caption("Rédigé par le LLM (Amazon Bedrock), chiffres contrôlés par le code" if auteur == "llm"
+               else f"Rédigé par un gabarit de texte ({auteur}), chiffres contrôlés par le code")
     st.markdown(f"**{f['intro']}**")
     for l in f["lignes"]:
         traces = "".join(f"<span class='tr'>{t}</span>" for t in l.get("traces", []))
@@ -93,23 +115,37 @@ def afficher_reponse(res, index):
     st.caption(f"Ce que 2022 aurait fait à {money(res['persona']['capital'])} (valeur en fin de mois)")
     st.line_chart(pd.DataFrame(valeurs, index=["début"] + [f"{m:02d}" for m in range(1, len(d['base']['valeurs']))]))
     st.info(f"**Limites.** {f['limites']}")
+    rejets = [e for e in res["etapes"] if e["agent"] == "Vérificateur de fidélité" and e["statut"] == "fail"]
+    if rejets:
+        st.warning("**Le vérificateur de fidélité a bloqué une version précédente de cette réponse.** "
+                   + " ".join(e.get("note", "") + "." for e in rejets)
+                   + " Elle a été régénérée : la version affichée ne contient que des chiffres présents dans les traces.", icon="🛡️")
     st.success(f"Chiffres vérifiés : chacun provient d'une trace de calcul ({res['verif']['trace']}).")
     autre = "inter" if f["style"] == "avance" else "avance"
     if st.button("Explique-moi plus simplement" if autre == "inter" else "Version plus technique", key=f"style{index}"):
-        res["fiche"] = explicabilite.rediger(res["contexte"], res["journal"], autre)
+        with st.spinner("L'Agent Explicabilité reformule, puis le vérificateur contrôle chaque chiffre…"):
+            reformuler(res, autre, on_etape=etat.etapes.append)
         st.rerun()
     with st.expander(f"Voir les {len(res['journal'].traces)} traces (journal d'audit)"):
         for t in res["journal"].traces:
             st.markdown(f"**{t['id']} · {t['titre']}** — _{t['agent']}_  \n`{t['outil']}`  \nEntrées : {t['entrees']}  \n"
                         f"Sortie : **{t['sortie']}**  \nSource : {t['source']} · Période : {t['periode']}")
+    with st.expander("Voir le mandat JSON (produit par l'Agent Profil)"):
+        st.json(res["mandat"], expanded=False)
     st.caption(f"Données : {res['source_donnees']}")
 
 
 # ---------- Écran 2 : chat | coulisses ----------
 def ecran_analyse():
-    p = config.PERSONAS[etat.persona]
+    saisie = etat.profil_saisi if etat.persona == "personnalise" else None
+    mandat = profil.construire_mandat(None if saisie else etat.persona, saisie)
+    p = mandat["profil"]
     tete_g, tete_d = st.columns([4, 1])
-    tete_g.markdown(f"### {p['nom']}, {p['age']} ans · {config.GABARITS[p['risque']]['label']} · {p['horizon']}")
+    risque = mandat["gabarit"]["label"] if mandat["gabarit"] else "tolérance non précisée"
+    age = f", {p['age']} ans" if p.get("age") else ""
+    tete_g.markdown(f"### {p['nom']}{age} · {risque} · {p['horizon']}")
+    for t in mandat["tensions"]:
+        tete_g.warning(f"Tension dans le profil : {t}.", icon="⚠️")
     if tete_d.button("Changer de profil"):
         etat.persona = None
         st.rerun()
@@ -117,7 +153,13 @@ def ecran_analyse():
     gauche, droite = st.columns([1.15, 1], gap="large")
     with droite:
         st.markdown("#### Dans les coulisses")
-        halluciner = st.toggle("Simuler une erreur du LLM", help="Montre le vérificateur de fidélité en action")
+        import os
+        from src import bedrock_client
+        if bedrock_client.actif():
+            st.caption(f"🟢 Mode **Bedrock** · région {os.getenv('AWS_REGION', '?')} · "
+                       f"Profil : {os.getenv('BEDROCK_MODELE_RAPIDE', '?')} · Explicabilité : {os.getenv('BEDROCK_MODELE_REDACTION', '?')}")
+        else:
+            st.caption("⚪ Mode **local** (aucun appel AWS). Pour Bedrock : MODE=bedrock dans app/.env, puis redémarrer Streamlit.")
         zone_agents = st.container()
         for e in etat.etapes:
             afficher_etape(e, zone_agents)
@@ -152,7 +194,7 @@ def ecran_analyse():
             etat.etapes.append(e)
             afficher_etape(e, zone_agents)
 
-        res = executer(etat.persona, question, halluciner=halluciner, on_etape=en_direct)
+        res = executer(None if saisie else etat.persona, question, on_etape=en_direct, profil_saisi=saisie)
         attente.empty()
         etat.messages.append({"role": "assistant", "res": res})
         st.rerun()

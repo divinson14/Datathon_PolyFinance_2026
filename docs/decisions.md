@@ -52,6 +52,17 @@ Robert à 30 % TSLA : TSLA porte 89,5 % du risque. Crypto : bascule à 0 % pour 
 `data/raw/added/esg_controverses.csv` est encore vide : tous les titres sont « non évalué ». Le moteur ne les déclare
 **pas** conformes : il les signale comme information manquante (UI ⚠️, ligne dans l'explication). À remplir (NT), puis lancer `02_construire_esg.py`.
 
+## Agent Profil (app/src/agents/profil.py, config/profil.yaml, config/alias_actifs.yaml)
+- **Mandat JSON** = profil + gabarit + contraintes + horizon en années + informations manquantes + tensions + hypothèses + demande.
+  Le profil vient d'un persona de référence OU de 5 champs saisis (âge, tolérance, horizon, objectif, ESG ; capital facultatif).
+- **La tolérance au risque n'est jamais déduite** : si elle manque, l'agent s'arrête et la demande.
+- **Tensions** entre champs (ex. tolérance élevée + horizon < 7 ans, seuils dans config/profil.yaml) : signalées dans
+  l'interface et l'explication, jamais corrigées à la place de l'utilisateur. L'âge n'est volontairement pas utilisé dans une règle.
+- Profil saisi : capital fictif par défaut et portefeuille supposé selon la tolérance, affichés comme hypothèses.
+- **Extraction de la demande** : le LLM choisit l'actif et recopie l'extrait (« 30 % », « 50 000 $ ») ; le code vérifie que
+  l'extrait est dans le message (contrôle d'ancrage) puis calcule la part. Un montant ≥ capital n'est pas une part.
+  Plusieurs actifs cités ou part hors de 0–100 % → question à l'utilisateur. Deux traces : « Construction du mandat », « Extraction de la demande ».
+
 ## Services AWS
 | Service | Pourquoi |
 |---|---|

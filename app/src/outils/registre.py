@@ -1,5 +1,5 @@
-"""Liste des outils exposés à l'Agent Analyste (et à Lambda).
-Étape suivante : décrire ces outils en JSON Schema pour le « tool use » de l'API Converse de Bedrock."""
+"""Liste des outils de calcul exposés à Lambda.
+L'Agent Analyste (Strands) les emballe dans des outils @tool : voir src/agents/analyste.py."""
 from src.outils import calculs
 
 OUTILS = {
@@ -9,4 +9,5 @@ OUTILS = {
     "analyse_portefeuille": calculs.analyse_portefeuille,
     "point_de_bascule": calculs.point_de_bascule,
     "contexte_macro": calculs.contexte_macro,
+    "pire_fenetre_12_mois": calculs.pire_fenetre_12_mois,
 }
