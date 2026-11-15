@@ -1,5 +1,5 @@
 # InvestIA
-**On ne vous dit pas quoi acheter. On vous montre où votre décision cesse d'être cohérente avec vous.**
+**On ne vous dit pas quoi acheter. On vous montre jusqu'où votre décision reste cohérente avec vous.**
 
 Copilote d'investissement **agentique et auto-explicatif**, en simulation. Datathon PolyFinances 2026 ·
 Banque Nationale × AWS.
@@ -14,10 +14,10 @@ Banque Nationale × AWS.
 ---
 
 ## Le problème, la réponse
-Robert, 59 ans, profil prudent, veut mettre 30 % de son portefeuille dans Tesla. Il pense engager 30 % de ses
-dollars ; en réalité, il y placerait **89,5 % de son risque**. AlphaForge calcule le **point de bascule** : la part
-maximale compatible avec son profil (**3 %**) et la règle qui casse en premier. Même question pour Amira (profil
-élevé) : **13 %** ; pour Mateo (modéré, ESG) : **6 %**. Chaque chiffre de la réponse renvoie à sa trace de calcul.
+On pense en dollars, mais un portefeuille réagit au risque : pour un investisseur prudent, **30 % en Tesla, c'est
+près de 90 % du risque** de tout son portefeuille. InvestIA répond à une question simple : *ce placement est-il
+cohérent avec mon profil, et sinon, jusqu'où le serait-il ?* C'est le **point de bascule** : même question, prudent
+**3 %**, équilibré **6 %**, audacieux **13 %**. Chaque chiffre affiché renvoie à la preuve de son calcul.
 
 ## Essayer en 2 minutes (dans l'outil)
 1. Choisir **Robert**, puis écrire : `Tout le monde parle de Tesla, je pense mettre 30 % dedans. Bonne idée ?`
