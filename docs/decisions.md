@@ -180,9 +180,23 @@ Sortie : `data/processed/esg_drapeaux.csv` (via `02_construire_esg.py`). Sources
 |---|---|
 | Bedrock | LLM des agents ; petit modèle pour l'extraction, modèle plus capable pour la rédaction |
 | Bedrock Guardrails | Bloque transactions réelles et conseil personnalisé |
-| S3 | Données propres produites par data/ |
+| S3 | Données propres produites par data/ (bucket `alphaforge-donnees-at2026`, us-east-1) |
 | Lambda | Outils de calcul isolés, rôle IAM en lecture seule |
 | DynamoDB | Journal d'audit des traces |
+
+### Données dans S3 (DONNEES=s3)
+- **Pourquoi S3 :** une seule copie des données propres, partagée par l'équipe et lue par l'application ;
+  `data/scripts/04_envoyer_s3.py` dépose `data/processed/*.csv` sous `processed/`, puis `charger()` lit S3.
+- **Bucket privé et chiffré :** région us-east-1 (comme Bedrock), « Block all public access » activé,
+  chiffrement par défaut SSE-S3. Aucune clé dans le code ni dans git : identifiants temporaires du Workshop
+  dans le terminal ou `app/.env` (ignoré par git).
+- **Lecture seule côté application :** le code de l'application ne fait que des `get_object`, jamais d'écriture.
+  Les identifiants du Workshop ne sont pas restreints par une politique IAM dédiée : la lecture seule est
+  garantie par le code, pas par IAM.
+- **Traçabilité :** la source affichée (`charger()[2]`) commence par `s3://alphaforge-donnees-at2026/processed/`.
+- **Pas de repli silencieux :** si S3 est illisible (identifiants absents ou expirés, bucket ou fichier introuvable,
+  accès refusé), le chargeur lève `DonneesS3Indisponibles` avec un message clair ; il ne bascule jamais vers les
+  données fictives et ne fait pas disparaître les drapeaux ESG.
 
 ## Journal des choix
 - AAAA-MM-JJ — choix — raison — qui
@@ -196,3 +210,6 @@ Sortie : `data/processed/esg_drapeaux.csv` (via `02_construire_esg.py`). Sources
 - 2026-11-14 — Correction de `01_nettoyer_prix.py` : le report se fait maintenant APRÈS la réduction aux jours de bourse —
   avant, les fins de semaine (lignes crypto) comptaient dans la limite de 3 et les 13 titres `.TO` gardaient 3 trous
   (2021-12-28, 2022-12-27, 2023-12-26 : Noël TSX collé à un week-end). Résultat : 0 valeur manquante sur les 31 actifs — P1
+- 2026-11-15 — Données lues depuis S3 (`DONNEES=s3`, bucket privé et chiffré) : une source partagée, affichée en `s3://…`,
+  erreur claire si S3 est inaccessible, jamais de retour aux données fictives ; `04_envoyer_s3.py` lit `app/.env` —
+  vérifié : `verifier_donnees.py --pipeline`, `pytest tests/` et `lancer_scenarios.py` verts — P1
