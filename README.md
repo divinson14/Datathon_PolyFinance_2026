@@ -4,7 +4,7 @@
 Copilote d'investissement **agentique et auto-explicatif**, en simulation. Datathon PolyFinances 2026 ·
 Banque Nationale × AWS.
 
-- **Outil déployé :** <!-- ÉQUIPE : coller ici le lien public --> _à compléter_
+- **Outil déployé :** https://datathonpolyfinance2026-mxffdccgcsajtvrgwrguj8.streamlit.app 
 - **Vidéo de démonstration :** <!-- ÉQUIPE : lien Google Drive --> _à compléter_
 - **One-pager :** [`docs/one_pager.md`](docs/one_pager.md) · **Documentation technique :** [`docs/documentation_technique.md`](docs/documentation_technique.md)
 
@@ -152,4 +152,4 @@ est donc signalé « à vérifier », jamais déclaré conforme. Les données so
 période. Détail : [`docs/documentation_technique.md`](docs/documentation_technique.md), section 7.
 
 ## Équipe
-<!-- ÉQUIPE : numéro d'équipe et membres --> _à compléter_
+Equipe 19.
