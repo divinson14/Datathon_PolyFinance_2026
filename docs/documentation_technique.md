@@ -67,15 +67,26 @@ Les données sont préparées dans le dépôt et ne nécessitent pas de téléch
 
 ## 4. Méthodes et technologies
 
-### Modèles Bedrock
-Les modèles Amazon Bedrock sont choisis selon un rôle fonctionnel :
-- Claude Haiku : agents rapides, notamment Agent Profil ;
-- Claude Sonnet : agents de raisonnement, d'analyse, de gouvernance et d'explicabilité.
+### Modèles Bedrock : le bon modèle pour chaque tâche
+| Modèle | Utilisé par | Tâche | Prix catalogue (API Anthropic, par million de jetons) |
+|---|---|---|---|
+| **Claude Haiku 5.5** (`us.anthropic.claude-haiku-5-5`) | Agent Profil | Courte et fréquente : reconnaître l'actif (même mal orthographié) et recopier l'extrait « 30 % » | 0,10 $ en entrée · 0,50 $ en sortie |
+| **Claude Sonnet 5.5** (`us.anthropic.claude-sonnet-5-5`) | Analyste (Strands), Gouvernance, Explicabilité | Choisir des outils, formuler un verdict, rédiger sans déformer les chiffres | 2 $ en entrée · 10 $ en sortie |
 
-Les raisons de ce choix sont simples :
-- vitesse d'exécution pour les demandes de profil et de contexte ;
-- capacité de raisonnement pour l'analyse de risque et la validation ;
-- meilleur contrôle de la structure de sortie via JSON et contraintes métier.
+**Pourquoi deux modèles plutôt qu'un.**
+- **Coût :** Haiku est environ **20 fois moins cher** que Sonnet. L'Agent Profil est appelé à **chaque message**, y compris
+  pour « bonjour » ou une relance « et à 5 % ? » : c'est l'appel le plus fréquent, et il ne demande pas de raisonnement.
+- **Vitesse :** l'étape Profil prend environ **2 secondes** ; l'utilisateur voit tout de suite que sa demande est comprise.
+- **Fiabilité là où elle compte :** la rédaction doit recopier chaque chiffre exactement et respecter les étiquettes
+  Fait / Hypothèse / Scénario fictif. Sonnet y parvient : sur Bedrock, **33 chiffres sur 33** vérifiés et aucune
+  formulation de conseil sur le parcours de Robert. C'est aussi lui qui pilote l'agent Strands (appels d'outils).
+- **Pas de modèle plus puissant (Opus) :** les décisions et les chiffres viennent du code ; le LLM comprend et
+  rédige. Un modèle plus cher n'apporterait pas de gain mesurable, et chaque réponse est de toute façon vérifiée.
+- **Mesuré, pas supposé :** `tests/tester_profil.py --bedrock` réussit 9 cas sur 9 avec Haiku ; un parcours complet
+  (5 étapes LLM) prend environ 25 secondes.
+
+Les prix ci-dessus sont les tarifs publics de l'API Anthropic ; sur Amazon Bedrock, la tarification est fixée par AWS et
+peut différer (page « Amazon Bedrock pricing »). Les modèles se changent dans `.env` sans toucher au code.
 
 ### Calculs déterministes
 Les calculs sont réalisés dans le code Python, dans `app/src/outils/` et `app/src/regles/`, pour éviter d'aboutir à un résultat purement textuel.
