@@ -265,6 +265,8 @@ def afficher_reponse(res, index):
                         f"Sortie : **{t['sortie']}**  \nSource : {t['source']} · Période : {t['periode']}")
     with st.expander("Voir le mandat JSON (produit par l'Agent Profil)"):
         st.json(res["mandat"], expanded=False)
+    # Sous la réponse : sources en clair pour le client. Le chemin technique (s3://…) et la version
+    # des données (manifeste) sont affichés une seule fois dans « Voir comment j'ai décidé ».
     src = res["source_donnees"]
     st.caption(src if "FICTIVES" in src else
                "Sources : Yahoo Finance (prix ajustés des dividendes et fractionnements) · Banque du Canada (taux de change, "
@@ -378,6 +380,7 @@ def ecran_analyse():
                            f"Explicabilité : {os.getenv('BEDROCK_MODELE_REDACTION', '?')}")
             else:
                 st.caption("Mode démonstration hors ligne : agents simulés, aucun appel AWS.")
+            st.caption(f"Données : {charger()[2]}")
             zone_agents = st.container()
         for i, e in enumerate(etat.etapes):
             etape_timeline(e, derniere=(i == len(etat.etapes) - 1), conteneur=zone_agents)

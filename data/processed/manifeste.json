@@ -1,0 +1,40 @@
+{
+  "version": "ae9492861959",
+  "genere_le": "2026-11-15T19:19:21+00:00",
+  "genere_par": "data/scripts/04_envoyer_s3.py",
+  "fichiers": {
+    "esg_drapeaux.csv": {
+      "sha256": "90c73a68c23503f6382c56122fd4336bd7459160f90e2c8121587f1153efc572",
+      "lignes": 31,
+      "colonnes": 10
+    },
+    "journal_nettoyage.csv": {
+      "sha256": "1277ff7240252dd22c7f16405b606dd6f4c52da5f3d93fdaa045e969d9114add",
+      "lignes": 31,
+      "colonnes": 3
+    },
+    "macro_quotidien.csv": {
+      "sha256": "c14441ad70dd04778645e50b30ffd200a52689002e99e20bc8d96546b7a021f0",
+      "lignes": 8105,
+      "colonnes": 7,
+      "periode": {
+        "debut": "2021-11-12",
+        "fin": "2026-11-12"
+      }
+    },
+    "prix_cad_alignes.csv": {
+      "sha256": "6118493dd009d1c1a0c11e8998c5eba1e9d9f4200cdbbfebd6b20f925cb43a35",
+      "lignes": 1282,
+      "colonnes": 32,
+      "periode": {
+        "debut": "2021-11-12",
+        "fin": "2026-11-12"
+      }
+    },
+    "univers_enrichi.csv": {
+      "sha256": "7282be25cfc85dd86462c5a3b30ab7f95a58a8e52c9047d8ebdea637150c80f9",
+      "lignes": 31,
+      "colonnes": 6
+    }
+  }
+}

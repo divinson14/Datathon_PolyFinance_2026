@@ -1,6 +1,8 @@
 """Lecture des données propres produites par data/ (local ou S3), ou données de démo fictives."""
 from functools import lru_cache
+import hashlib
 import io
+import json
 import os
 
 import numpy as np
@@ -10,6 +12,7 @@ from src.config import DONNEES, RACINE_REPO
 
 DOSSIER_LOCAL = RACINE_REPO / "data" / "processed"
 LIBELLE_DEMO = "DONNÉES FICTIVES de démonstration (data/processed/ absent)"
+NOM_MANIFESTE = "manifeste.json"          # écrit par data/scripts/04_envoyer_s3.py
 
 # Univers FICTIF de démonstration : mêmes symboles et classes que le jeu de départ,
 # paramètres inventés (volatilité, rendement, sensibilité au facteur commun).
@@ -40,6 +43,11 @@ def _emplacement_s3() -> str:
 
 
 def _lire(nom: str) -> pd.DataFrame:
+    return pd.read_csv(io.BytesIO(_lire_octets(nom)))
+
+
+def _lire_octets(nom: str) -> bytes:
+    """Contenu brut d'un fichier de data/processed/ (local) ou du bucket (S3). FileNotFoundError en local."""
     if DONNEES == "s3":
         import boto3
         from botocore.exceptions import BotoCoreError, ClientError, NoCredentialsError
@@ -60,8 +68,37 @@ def _lire(nom: str) -> pd.DataFrame:
                 f"(relancer data/scripts/04_envoyer_s3.py) ou accès refusé / identifiants expirés.") from e
         except BotoCoreError as e:
             raise DonneesS3Indisponibles(f"Erreur AWS en lisant s3://{bucket}/{cle} : {e}") from e
-        return pd.read_csv(io.BytesIO(obj["Body"].read()))
-    return pd.read_csv(DOSSIER_LOCAL / nom)
+        return obj["Body"].read()
+    return (DOSSIER_LOCAL / nom).read_bytes()
+
+
+def empreinte(octets: bytes) -> str:
+    """SHA-256, fins de ligne normalisées en \\n (même calcul que data/scripts/commun.py)."""
+    return hashlib.sha256(octets.replace(b"\r\n", b"\n")).hexdigest()
+
+
+@lru_cache(maxsize=1)
+def charger_manifeste() -> dict | None:
+    """Manifeste écrit par data/scripts/04_envoyer_s3.py (version, date, empreintes). None s'il est absent."""
+    if _sans_donnees_reelles():
+        return None
+    try:
+        return json.loads(_lire_octets(NOM_MANIFESTE))
+    except (FileNotFoundError, DonneesS3Indisponibles):   # absent : la version est affichée « non vérifiée »
+        return None
+
+
+def statut_version(manifeste: dict | None, lus: dict[str, bytes]) -> str:
+    """Compare les fichiers réellement lus au manifeste. Retourne un libellé à afficher, jamais muet."""
+    if not manifeste:
+        return "version non vérifiée (manifeste absent : relancer data/scripts/04_envoyer_s3.py)"
+    attendus = manifeste.get("fichiers", {})
+    differents = [nom for nom, octets in lus.items()
+                  if attendus.get(nom, {}).get("sha256") != empreinte(octets)]
+    if differents:
+        return (f"⚠ ne correspond PAS au manifeste {manifeste.get('version', '?')} "
+                f"({', '.join(differents)} modifié depuis) : relancer data/scripts/04_envoyer_s3.py")
+    return f"version {manifeste.get('version', '?')} du {manifeste.get('genere_le', '?')[:10]}, empreintes vérifiées"
 
 
 def _demo():
@@ -95,12 +132,14 @@ def charger():
     if _sans_donnees_reelles():
         prix, univers = _demo()
         return prix, univers, LIBELLE_DEMO
-    prix = _lire("prix_cad_alignes.csv")
+    lus = {nom: _lire_octets(nom) for nom in ("prix_cad_alignes.csv", "univers_enrichi.csv")}
+    prix = pd.read_csv(io.BytesIO(lus["prix_cad_alignes.csv"]))
     prix["date"] = pd.to_datetime(prix["date"])
     prix = prix.set_index("date").sort_index()
-    univers = _lire("univers_enrichi.csv")
+    univers = pd.read_csv(io.BytesIO(lus["univers_enrichi.csv"]))
     dossier = _emplacement_s3() if DONNEES == "s3" else "data/processed/"
-    return prix, univers, f"{dossier}prix_cad_alignes.csv (clôture ajustée, en CAD)"
+    version = statut_version(charger_manifeste(), lus)
+    return prix, univers, f"{dossier}prix_cad_alignes.csv (clôture ajustée, en CAD) · {version}"
 
 
 def donnees_fictives() -> bool:
