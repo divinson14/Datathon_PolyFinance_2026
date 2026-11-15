@@ -152,4 +152,4 @@ est donc signalé « à vérifier », jamais déclaré conforme. Les données so
 période. Détail : [`docs/documentation_technique.md`](docs/documentation_technique.md), section 7.
 
 ## Équipe
-<!-- ÉQUIPE : numéro d'équipe et membres --> _à compléter_
+Equipe 19.
