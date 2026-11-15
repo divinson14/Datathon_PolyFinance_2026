@@ -14,6 +14,10 @@ MODE = os.getenv("MODE", "local")                    # local | bedrock
 DONNEES = os.getenv("DONNEES", "local")              # local | s3 | demo
 TRACES = os.getenv("TRACES", "local")                # local | dynamodb
 ANALYSTE = os.getenv("ANALYSTE", "strands")         # strands (agent qui choisit ses outils) | fixe (plan fixe)
+LAMBDA_OUTILS_URL = os.getenv(
+    "LAMBDA_OUTILS_URL",
+    "https://clpgufrebwhh743mjweiwgj4iy0zfqsa.lambda-url.us-east-1.on.aws/",
+)
 MAX_TENTATIVES = 3
 
 

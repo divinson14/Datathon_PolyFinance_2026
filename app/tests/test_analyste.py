@@ -33,6 +33,7 @@ def strands(monkeypatch):
     """Active le mode Strands et renvoie une fonction pour installer le faux agent."""
     monkeypatch.setattr(config, "MODE", "bedrock")
     monkeypatch.setattr(config, "ANALYSTE", "strands")
+    monkeypatch.setattr(config, "LAMBDA_OUTILS_URL", "")
 
     def installer(plan, texte="Outils appelés.\nPART=0.3"):
         monkeypatch.setattr(analyste, "_creer_agent", lambda outils: FauxAgent(outils, plan, texte))
@@ -69,6 +70,25 @@ def test_mode_strands_cles_et_stress_test(strands):
     for cle in ("stats", "macro", "mesures_base", "mesures", "base", "rejeu"):
         assert not _agent_de(j, d[cle]["trace"]).endswith(analyste.COMPLETE), cle
     assert _agent_de(j, d["bascule"]["trace"]).endswith(analyste.COMPLETE)
+
+
+def test_outils_strands_appellent_lambda_si_url_configuree(strands, monkeypatch):
+    strands([("statistiques_actif",), ("contexte_taux_2022",), ("rejeu_2022", 0), ("volatilite_portefeuille", 0),
+             ("rejeu_2022", 0.3), ("volatilite_portefeuille", 0.3)])
+    monkeypatch.setattr(config, "LAMBDA_OUTILS_URL", "https://exemple.lambda-url.us-east-1.on.aws/")
+    appels = []
+
+    def appeler_lambda(journal, outil, parametres, agent):
+        appels.append(outil)
+        return getattr(calculs, outil)(journal, agent=agent, **parametres)
+
+    monkeypatch.setattr(analyste.client_lambda, "appeler_outil", appeler_lambda)
+    _demande(Journal())
+
+    assert appels == [
+        "statistiques", "contexte_macro", "rejeu_2022",
+        "analyse_portefeuille", "rejeu_2022", "analyse_portefeuille",
+    ]
 
 
 def test_mode_strands_memes_valeurs_que_le_plan_fixe(strands):
