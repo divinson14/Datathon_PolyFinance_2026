@@ -197,6 +197,12 @@ Sortie : `data/processed/esg_drapeaux.csv` (via `02_construire_esg.py`). Sources
 - **Pas de repli silencieux :** si S3 est illisible (identifiants absents ou expirés, bucket ou fichier introuvable,
   accès refusé), le chargeur lève `DonneesS3Indisponibles` avec un message clair ; il ne bascule jamais vers les
   données fictives et ne fait pas disparaître les drapeaux ESG.
+- **Manifeste des données (`processed/manifeste.json`) :** écrit par `04_envoyer_s3.py` juste avant l'envoi, déposé
+  en dernier dans S3. Pour chaque CSV : empreinte SHA-256 (fins de ligne normalisées, car git convertit `\r\n`/`\n`
+  selon la machine), lignes, colonnes, période. `version` = empreinte de l'ensemble (12 caractères). À la lecture,
+  `charger()` recalcule l'empreinte des fichiers lus et l'ajoute à la source affichée et aux traces :
+  « version … du …, empreintes vérifiées », « ⚠ ne correspond PAS au manifeste » ou « version non vérifiée ».
+  Chaque chiffre peut ainsi être relié au jeu de données exact qui l'a produit. Un écart est signalé, pas bloquant.
 
 ## Journal des choix
 - AAAA-MM-JJ — choix — raison — qui
@@ -213,3 +219,5 @@ Sortie : `data/processed/esg_drapeaux.csv` (via `02_construire_esg.py`). Sources
 - 2026-11-15 — Données lues depuis S3 (`DONNEES=s3`, bucket privé et chiffré) : une source partagée, affichée en `s3://…`,
   erreur claire si S3 est inaccessible, jamais de retour aux données fictives ; `04_envoyer_s3.py` lit `app/.env` —
   vérifié : `verifier_donnees.py --pipeline`, `pytest tests/` et `lancer_scenarios.py` verts — P1
+- 2026-11-15 — Manifeste des données : version et empreintes SHA-256 des CSV de `processed/`, vérifiées à chaque
+  lecture et affichées avec la source (traces et interface) — chaque chiffre est traçable jusqu'au fichier exact — P1

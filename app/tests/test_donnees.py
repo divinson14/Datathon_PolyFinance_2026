@@ -52,3 +52,16 @@ def test_traces_de_calcul_en_cad():
     d = res["demande"]
     for tid in (d["rejeu"]["trace"], d["base"]["trace"], d["mesures"]["trace"]):
         assert "CAD" in j.trouver(tid)["sortie"], tid
+
+
+def test_manifeste_statut_version():
+    """Le libellé de version dit toujours la vérité : absent, conforme ou modifié depuis le manifeste."""
+    octets = b"date,SPY\r\n2026-11-13,100\r\n"
+    manifeste = {"version": "abc123def456", "genere_le": "2026-11-15T12:00:00+00:00",
+                 "fichiers": {"prix_cad_alignes.csv": {"sha256": chargeur.empreinte(octets.replace(b"\r\n", b"\n"))}}}
+    # Fins de ligne \r\n (Windows) ou \n : même empreinte.
+    assert "empreintes vérifiées" in chargeur.statut_version(manifeste, {"prix_cad_alignes.csv": octets})
+    assert "abc123def456" in chargeur.statut_version(manifeste, {"prix_cad_alignes.csv": octets})
+    modifie = chargeur.statut_version(manifeste, {"prix_cad_alignes.csv": octets + b"2026-11-14,101\n"})
+    assert "ne correspond PAS" in modifie and "prix_cad_alignes.csv" in modifie
+    assert "non vérifiée" in chargeur.statut_version(None, {"prix_cad_alignes.csv": octets})
