@@ -27,7 +27,8 @@ def _contexte(j: dict, persona: dict | None) -> dict:
         "demande": j["libelle"], "symbole": j["symbole"],
         "verdicts": {"trace": v["trace"], "regles": [
             {"regle": r["regle"], "limite": r["limite"], "valeur": r["valeur"], "respectee": bool(r["ok"]),
-             "information_manquante": bool(r.get("manquant"))} for r in v["regles"]]},
+             "information_manquante": bool(r.get("manquant")), "non_applicable": bool(r.get("neutre"))}
+            for r in v["regles"]]},
         "portefeuille_de_base_conforme": None if b is None else bool(b["base_conforme"]),
         "point_de_bascule": None if b is None else {
             "part_max": pct(b["part_max"]) if b["part_max"] is not None else None,

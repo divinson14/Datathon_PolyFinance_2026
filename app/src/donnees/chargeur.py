@@ -9,6 +9,7 @@ import pandas as pd
 from src.config import DONNEES, RACINE_REPO
 
 DOSSIER_LOCAL = RACINE_REPO / "data" / "processed"
+LIBELLE_DEMO = "DONNÉES FICTIVES de démonstration (data/processed/ absent)"
 
 # Univers FICTIF de démonstration : mêmes symboles et classes que le jeu de départ,
 # paramètres inventés (volatilité, rendement, sensibilité au facteur commun).
@@ -69,12 +70,17 @@ def charger():
     """Retourne (prix_cad, univers, source_libelle)."""
     if _sans_donnees_reelles():
         prix, univers = _demo()
-        return prix, univers, "DONNÉES FICTIVES de démonstration (data/processed/ absent)"
+        return prix, univers, LIBELLE_DEMO
     prix = _lire("prix_cad_alignes.csv")
     prix["date"] = pd.to_datetime(prix["date"])
     prix = prix.set_index("date").sort_index()
     univers = _lire("univers_enrichi.csv")
     return prix, univers, "data/processed/prix_cad_alignes.csv (clôture ajustée, en CAD)"
+
+
+def donnees_fictives() -> bool:
+    """True si l'application tourne sur les données FICTIVES de démonstration (à signaler à l'utilisateur)."""
+    return charger()[2] == LIBELLE_DEMO
 
 
 @lru_cache(maxsize=1)

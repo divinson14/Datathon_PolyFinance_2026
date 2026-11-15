@@ -41,9 +41,11 @@ def test_crypto_interdite_pour_profil_prudent():
 
 
 def _esg_simule(monkeypatch, drapeaux: dict):
-    """Données ESG simulées : le test ne dépend pas du contenu réel de data/processed/esg_drapeaux.csv."""
+    """Données ESG simulées : le test ne dépend pas du contenu réel de data/processed/esg_drapeaux.csv.
+    La règle s'applique à TOUS les actifs : les FNB des tests reçoivent un statut par défaut (modifiable)."""
     import pandas as pd
     from src.regles import moteur
+    drapeaux = {"XIU.TO": "conforme", "XBB.TO": "non applicable", **drapeaux}
     monkeypatch.setattr(moteur, "charger_esg",
                         lambda: pd.DataFrame({"symbole": list(drapeaux), "controverse": list(drapeaux.values())}))
 
@@ -92,3 +94,78 @@ def test_verificateur_rejette_un_chiffre_invente():
     faux = {"intro": "30 %", "lignes": [{"texte": "-28,2 %"}], "limites": ""}
     assert fidelite.verifier(j, ok, "", 1)["ok"]
     assert not fidelite.verifier(j, faux, "", 2)["ok"]
+
+
+def test_esg_conforme_compte_comme_sans_controverse(monkeypatch):
+    _esg_simule(monkeypatch, {"TSLA": "conforme"})
+    esg = _regle_esg({"TSLA": 0.05, "XIU.TO": 0.45, "XBB.TO": 0.5})
+    assert esg["ok"] and not esg["manquant"] and not esg["neutre"]
+
+
+def test_esg_non_applicable_neutre_seul(monkeypatch):
+    """« non applicable » : ni ✅ confirmé, ni ⚠️ information manquante."""
+    _esg_simule(monkeypatch, {"TSLA": "non applicable"})
+    esg = _regle_esg({"TSLA": 0.05, "XBB.TO": 0.95})
+    assert esg["ok"] and not esg["manquant"] and esg["neutre"]
+    assert esg["valeur"] == "non applicable : TSLA, XBB.TO (portefeuille supposé)"
+
+
+def test_esg_non_applicable_ignore_a_cote_d_un_titre_evalue(monkeypatch):
+    _esg_simule(monkeypatch, {"TSLA": "non applicable", "FTS.TO": "non"})
+    esg = _regle_esg({"TSLA": 0.05, "FTS.TO": 0.05, "XIU.TO": 0.4, "XBB.TO": 0.5})
+    assert esg["ok"] and not esg["manquant"] and not esg["neutre"]
+    assert esg["valeur"] == "aucune controverse relevée"
+
+
+def test_esg_non_applicable_ne_masque_pas_un_manque_ni_une_controverse(monkeypatch):
+    _esg_simule(monkeypatch, {"TSLA": "non applicable", "FTS.TO": "non évalué", "XOM": "oui"})
+    esg = _regle_esg({"TSLA": 0.05, "FTS.TO": 0.05, "XIU.TO": 0.4, "XBB.TO": 0.5})
+    assert esg["ok"] and esg["manquant"] and not esg["neutre"] and "TSLA" not in esg["valeur"]
+    esg = _regle_esg({"TSLA": 0.05, "XOM": 0.05, "XIU.TO": 0.4, "XBB.TO": 0.5})
+    assert not esg["ok"] and not esg["neutre"] and "XOM" in esg["valeur"]
+
+
+def test_statuts_esg_des_donnees_reelles():
+    """Contenu de data/processed/esg_drapeaux.csv (produit par data/scripts/02_construire_esg.py)."""
+    from src.donnees.chargeur import charger_esg, donnees_fictives
+    if donnees_fictives():
+        import pytest
+        pytest.skip("données fictives : pas de fichier ESG")
+    esg = charger_esg().set_index("symbole")
+    statut = esg["controverse"].to_dict()
+    assert statut["ESGV"] == "conforme"
+    assert all(statut[s] == "non applicable" for s in ("XBB.TO", "ZST.TO", "AGG", "TLT", "GLD"))
+    assert all(statut[s] == "non évalué" for s in ("XIU.TO", "SPY", "QQQ", "BTC-USD", "ETH-USD", "JNJ"))
+    oui = esg[esg["controverse"] == "oui"]
+    assert set(oui.index) == {"ENB.TO", "CNQ.TO", "XOM"}
+    assert oui["motif"].isin(["secteur énergie (règle de l'équipe)", "exclu par ESGV (Vanguard)"]).all()
+
+
+def test_esg_s_applique_aux_fnb(monkeypatch):
+    """FNB compris : « conforme » ✅, « non évalué » ⚠️ (jamais conforme), « oui » ❌."""
+    _esg_simule(monkeypatch, {"FTS.TO": "non", "ESGV": "conforme", "SPY": "non évalué", "QQQ": "oui"})
+    assert not _regle_esg({"FTS.TO": 0.1, "ESGV": 0.4, "XBB.TO": 0.5})["manquant"]
+    esg = _regle_esg({"FTS.TO": 0.1, "SPY": 0.4, "XBB.TO": 0.5})
+    assert esg["ok"] and esg["manquant"] and esg["valeur"] == "non évalué : SPY"
+    assert not _regle_esg({"FTS.TO": 0.1, "QQQ": 0.4, "XBB.TO": 0.5})["ok"]
+
+
+def test_esg_manque_du_portefeuille_suppose_signale_comme_tel(monkeypatch):
+    """Mateo détient XIU.TO (non évalué) dans son portefeuille supposé : le manque est attribué à ce portefeuille."""
+    _esg_simule(monkeypatch, {"XIU.TO": "non évalué", "TSLA": "non"})
+    esg = _regle_esg({"TSLA": 0.05, "XIU.TO": 0.45, "XBB.TO": 0.5})
+    assert esg["ok"] and esg["manquant"]
+    assert esg["valeur"] == "non évalué : XIU.TO (portefeuille supposé)"
+
+
+def test_mateo_donnees_reelles_xiu_en_information_manquante():
+    """Données réelles : Mateo + Tesla → aucune violation ESG, mais XIU.TO (portefeuille supposé) non évalué."""
+    from src.donnees.chargeur import donnees_fictives
+    from src.orchestrateur import executer
+    if donnees_fictives():
+        import pytest
+        pytest.skip("données fictives : pas de fichier ESG")
+    res = executer("mateo", "Je veux mettre 10 % de mon portefeuille dans Tesla, mais je tiens aux critères ESG.")
+    esg = next(r for r in res["verdicts"]["regles"] if r["regle"] == "Exclusions ESG")
+    assert esg["ok"] and esg["manquant"] and "XIU.TO (portefeuille supposé)" in esg["valeur"]
+    assert "TSLA" not in esg["valeur"] and res["verif"]["ok"]

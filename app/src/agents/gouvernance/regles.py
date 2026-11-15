@@ -87,7 +87,8 @@ def _statut_esg(symbole: str) -> str:
     if esg is None:
         return "non évalué"
     drapeaux = dict(zip(esg["symbole"].astype(str), esg["controverse"].astype(str).str.lower()))
-    return {"oui": "controverse", "non": "sans controverse"}.get(drapeaux.get(symbole), "non évalué")
+    return {"oui": "controverse", "non": "sans controverse", "conforme": "sans controverse",
+            "non applicable": "non applicable"}.get(drapeaux.get(symbole, "").strip(), "non évalué")
 
 
 def tensions_profil(persona: dict | None, symbole: str, analyse: dict, verdicts: dict, univers) -> list[str]:
@@ -112,7 +113,7 @@ def tensions_profil(persona: dict | None, symbole: str, analyse: dict, verdicts:
               and stats["vol"] > TENSIONS_PROFIL["volatilite_titre_tres_volatil"]):
             raison = (f"{symbole} est un titre individuel très volatil "
                       f"(volatilité de {pct(stats['vol'])} seul, trace {stats['trace']})")
-        elif t["condition"] == "esg_incertain" and titre:
+        elif t["condition"] == "esg_incertain":           # tous les actifs, FNB compris (comme le moteur)
             statut = _statut_esg(symbole)
             if statut == "controverse":
                 raison = f"{symbole} est marqué « controverse importante » dans les données ESG"

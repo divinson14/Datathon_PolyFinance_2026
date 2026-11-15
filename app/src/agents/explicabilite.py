@@ -6,7 +6,23 @@ import re
 
 from src import bedrock_client
 from src.config import CALCUL, STYLES, prompt
+from src.donnees.chargeur import donnees_fictives
 from src.formatage import money, pct
+
+# Mentions ajoutées par le CODE à chaque réponse (LLM ou gabarit), sans aucun chiffre :
+# le vérificateur de fidélité n'a donc rien à y contrôler.
+MENTION_CAD = ("Montants et rendements en dollars canadiens (CAD) : les actifs cotés en dollars américains "
+               "sont convertis au taux quotidien de la Banque du Canada.")
+MENTION_FICTIVES = ("Attention : DONNÉES FICTIVES de démonstration (data/processed/ absent) ; "
+                    "les chiffres ne reflètent pas les marchés réels.")
+
+
+def _mentions_obligatoires(fiche: dict) -> dict:
+    """Ajoute aux limites la mention CAD et, le cas échéant, l'avertissement « données fictives »."""
+    mentions = ([MENTION_FICTIVES] if donnees_fictives() else []) + [MENTION_CAD]
+    limites = str(fiche.get("limites") or "").strip()
+    fiche["limites"] = " ".join(m for m in mentions if m not in limites) + (" " + limites if limites else "")
+    return fiche
 
 
 _HYPOTHESES = {
@@ -149,7 +165,8 @@ def _gabarit_texte(c: dict, style: str) -> dict:
                            "traces": [alt["mesures"]["trace"], alt["rejeu"]["trace"], alt["verdicts"]["trace"]]})
         limites = (f"{annee} et les 5 dernières années ne sont que des exemples du passé : ça ne dit pas ce qui arrivera demain. "
                    f"On a aussi supposé ton portefeuille actuel : {p['portefeuille_suppose_libelle']}.")
-    return {"intro": intro, "lignes": lignes, "limites": limites, "style": style, "auteur": "gabarit"}
+    return _mentions_obligatoires({"intro": intro, "lignes": lignes, "limites": limites, "style": style,
+                                   "auteur": "gabarit"})
 
 
 def rediger(contexte: dict, journal, style: str, strict: bool = False) -> dict:
@@ -179,4 +196,4 @@ def rediger(contexte: dict, journal, style: str, strict: bool = False) -> dict:
         fiche["auteur"] = f"gabarit (repli : format inattendu, clés manquantes {sorted(manquantes)})"
         return fiche
     rep.update(style=style, auteur="llm")
-    return rep
+    return _mentions_obligatoires(rep)

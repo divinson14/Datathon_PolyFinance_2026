@@ -12,6 +12,7 @@ import streamlit as st
 
 from src import config
 from src.agents import explicabilite, profil
+from src.donnees.chargeur import LIBELLE_DEMO, donnees_fictives
 from src.formatage import money, pct
 from src.orchestrateur import executer, reformuler
 
@@ -31,6 +32,9 @@ etat.setdefault("messages", [])
 etat.setdefault("etapes", [])
 
 st.warning("**Simulation uniquement** — aucune transaction réelle, aucun conseil financier personnalisé.", icon="⚠️")
+if donnees_fictives():          # repli silencieux du chargeur : on le rend impossible à manquer
+    st.error(f"**{LIBELLE_DEMO}.** Les chiffres affichés sont simulés et ne reflètent pas les marchés réels. "
+             "Pour les vraies données : `python data/scripts/01_nettoyer_prix.py` puis redémarrer.", icon="🚨")
 
 
 # ---------- Écran 1 : choix du profil ----------
@@ -82,6 +86,7 @@ def afficher_etape(e, conteneur):
         if "regles" in e:
             st.dataframe(pd.DataFrame([{"Règle": r["regle"], "Limite": r["limite"], "Valeur": r["valeur"],
                                         "Statut": ("⚠️ Information manquante" if r.get("manquant") else
+                                                   "➖ Non applicable" if r.get("neutre") else
                                                    "✅ Respecté" if r["ok"] else "❌ Violé")} for r in e["regles"]]),
                          hide_index=True, width="stretch")
         if e.get("resume"):
@@ -170,6 +175,7 @@ def afficher_reponse(res, index):
     st.caption("Rédigé par le LLM (Amazon Bedrock), chiffres contrôlés par le code" if auteur == "llm"
                else f"Rédigé par un gabarit de texte ({auteur}), chiffres contrôlés par le code")
     st.markdown(f"**{f['intro']}**")
+    st.caption("💱 Montants et rendements en dollars canadiens (CAD) — actifs en USD convertis au taux de la Banque du Canada.")
     for l in f["lignes"]:
         traces = "".join(f"<span class='tr'>{t}</span>" for t in l.get("traces", []))
         st.markdown(f"<span class='tag {CLASSES.get(l['tag'], 'fait')}'>{l['tag']}</span>{l['texte']} {traces}", unsafe_allow_html=True)
@@ -181,7 +187,7 @@ def afficher_reponse(res, index):
     valeurs = {"Portefeuille actuel": d["base"]["valeurs"], f"Demande {pct(d['part'])}": d["rejeu"]["valeurs"]}
     if alt_:
         valeurs[f"Au point de bascule ({pct(alt_['part'])})"] = alt_["rejeu"]["valeurs"]
-    st.caption(f"Ce que 2022 aurait fait à {money(res['persona']['capital'])} (valeur en fin de mois)")
+    st.caption(f"Ce que 2022 aurait fait à {money(res['persona']['capital'])} (valeur en fin de mois, en CAD)")
     st.line_chart(pd.DataFrame(valeurs, index=["début"] + [f"{m:02d}" for m in range(1, len(d['base']['valeurs']))]),
                   alt=f"Valeur simulée du portefeuille pendant 2022, avec et sans la demande")
     st.info(f"**Limites.** {f['limites']}")
@@ -203,7 +209,7 @@ def afficher_reponse(res, index):
                         f"Sortie : **{t['sortie']}**  \nSource : {t['source']} · Période : {t['periode']}")
     with st.expander("Voir le mandat JSON (produit par l'Agent Profil)"):
         st.json(res["mandat"], expanded=False)
-    st.caption(f"Données : {res['source_donnees']}")
+    st.caption(f"Données : {res['source_donnees']} · montants et rendements en dollars canadiens (CAD)")
 
 
 # ---------- Écran 2 : chat | coulisses ----------

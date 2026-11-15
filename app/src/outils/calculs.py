@@ -76,7 +76,7 @@ def statistiques(journal, symbole: str, agent: str) -> dict:
     m = mesures({symbole: 1.0})
     tid = journal.log(titre=f"Profil de risque · {symbole}", agent=agent, outil=f'statistiques("{symbole}")',
                       entrees=f"actif : {symbole} (en CAD)",
-                      sortie=f"volatilité annualisée : {pct(m['vol'])} · pire baisse : {pct(m['pire_baisse'])}",
+                      sortie=f"volatilité annualisée : {pct(m['vol'])} · pire baisse : {pct(m['pire_baisse'])} (en CAD)",
                       source=_source(), periode=m["periode"])
     return {"trace": tid, "vol": m["vol"], "pire_baisse": m["pire_baisse"]}
 
@@ -86,7 +86,7 @@ def analyse_portefeuille(journal, poids: dict, libelle: str, agent: str) -> dict
     m = mesures(poids)
     parts = sorted(m["parts_risque"].items(), key=lambda kv: -kv[1])
     detail = " · ".join(f"{s} {pct(v)}" for s, v in parts)
-    sortie = (f"volatilité annualisée : {pct(m['vol'])} · pire baisse : {pct(m['pire_baisse'])} · "
+    sortie = (f"rendements en CAD · volatilité annualisée : {pct(m['vol'])} · pire baisse : {pct(m['pire_baisse'])} · "
               f"paris indépendants : {nombre(m['paris_effectifs'])} · part du risque : {detail}")
     if m["correlation_max"]:
         a, b, rho = m["correlation_max"]
@@ -158,7 +158,7 @@ def rejeu_2022(journal, poids: dict, capital: float, libelle: str, agent: str) -
     rend = final / capital - 1
     tid = journal.log(titre=f"Rejeu {annee} · {libelle}", agent=agent, outil=f"rejeu_{annee}(poids, capital)",
                       entrees=f"{poids_texte(poids)} · capital {money(capital)}",
-                      sortie=f"rendement {pct(rend)} · perte {money(final - capital)} · valeur finale {money(final)}",
+                      sortie=f"rendement {pct(rend)} · perte {money(final - capital)} · valeur finale {money(final)} (en CAD)",
                       source=_source(), periode=f"{p.index.min().date()} → {p.index.max().date()}")
     return {"trace": tid, "valeurs": valeurs, "final": final, "rend": rend, "perte": final - capital}
 
@@ -213,6 +213,6 @@ def pire_fenetre_12_mois(journal, poids: dict, libelle: str, agent: str) -> dict
     pire = float(rend.min())
     tid = journal.log(titre=f"Pire fenêtre de 12 mois · {libelle}", agent=agent, outil="pire_fenetre_12_mois(poids)",
                       entrees=f"{poids_texte(poids)} · fenêtre glissante de {n} jours de bourse, achat-conservation",
-                      sortie=f"pire rendement sur 12 mois : {pct(pire)} · du {debut.date()} au {fin.date()}",
+                      sortie=f"pire rendement sur 12 mois (en CAD) : {pct(pire)} · du {debut.date()} au {fin.date()}",
                       source=_source(), periode=f"{p.index.min().date()} → {p.index.max().date()} · {len(rend)} fenêtres")
     return {"trace": tid, "rend": pire, "debut": str(debut.date()), "fin": str(fin.date())}

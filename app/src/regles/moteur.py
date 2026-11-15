@@ -22,22 +22,48 @@ def _max_titre(valeurs: dict, titres: set) -> tuple[str | None, float]:
     return s, candidats[s]
 
 
-def _regle_esg(poids: dict, titres: set) -> dict:
-    """Exclusions ESG : un titre marqué « oui » (controverse importante) viole la règle.
-    Un titre non évalué n'est PAS déclaré conforme : il est signalé comme information manquante."""
+# Statuts ESG (colonne « controverse » de esg_drapeaux.csv) :
+ESG_CONTROVERSE = {"oui"}                       # viole la règle (❌)
+ESG_SANS_CONTROVERSE = {"non", "conforme"}      # respecte la règle (« conforme » = FNB filtré ESG)
+ESG_NON_APPLICABLE = {"non applicable"}         # NEUTRE : ni confirmé conforme, ni information manquante
+# Tout le reste (« non évalué », titre absent du fichier) = information manquante (⚠️), jamais conforme.
+
+
+def _regle_esg(poids: dict, base: dict | None = None) -> dict:
+    """Exclusions ESG, appliquée à TOUS les actifs détenus (actions, crypto ET FNB).
+    - « oui » (controverse importante) viole la règle ;
+    - « non » / « conforme » la respectent ;
+    - « non applicable » (obligations, or) est NEUTRE : ni confirmé conforme, ni information manquante ;
+    - tout le reste (« non évalué », absent du fichier) est une information manquante, jamais déclaré conforme.
+    `base` = portefeuille supposé du persona : les actifs qui en viennent sont signalés comme tels, pour ne pas
+    laisser croire que le manque concerne la demande."""
     esg = charger_esg()
-    drapeaux = {} if esg is None else dict(zip(esg["symbole"].astype(str), esg["controverse"].astype(str).str.lower()))
-    detenus = [s for s, w in poids.items() if w > EPS and s in titres]
-    exclus = [s for s in detenus if drapeaux.get(s) == "oui"]
-    inconnus = [s for s in detenus if drapeaux.get(s, "non évalué") not in ("oui", "non")]
+    drapeaux = {} if esg is None else dict(zip(esg["symbole"].astype(str),
+                                               esg["controverse"].astype(str).str.strip().str.lower()))
+    base = base or {}
+    detenus = [s for s, w in poids.items() if w > EPS]
+    statut = {s: drapeaux.get(s, "non évalué") for s in detenus}
+    exclus = [s for s in detenus if statut[s] in ESG_CONTROVERSE]
+    neutres = [s for s in detenus if statut[s] in ESG_NON_APPLICABLE]
+    evalues = [s for s in detenus if statut[s] in ESG_SANS_CONTROVERSE]
+    inconnus = [s for s in detenus if s not in exclus + neutres + evalues]
+
+    def _liste(symboles):
+        return ", ".join(f"{s} (portefeuille supposé)" if base.get(s, 0) > EPS else s for s in symboles)
+
     if exclus:
-        valeur = "controverse importante : " + ", ".join(exclus)
+        valeur = "controverse importante : " + _liste(exclus)
     elif inconnus:
-        valeur = "non évalué : " + ", ".join(inconnus)
+        valeur = "non évalué : " + _liste(inconnus)
+    elif evalues:
+        valeur = "aucune controverse relevée"
+    elif neutres:
+        valeur = "non applicable : " + _liste(neutres)
     else:
         valeur = "aucune controverse relevée"
     return {"regle": "Exclusions ESG", "limite": "aucune controverse importante", "valeur": valeur,
-            "ok": not exclus, "manquant": bool(inconnus) and not exclus}
+            "ok": not exclus, "manquant": bool(inconnus) and not exclus,
+            "neutre": bool(neutres) and not (exclus or inconnus or evalues)}
 
 
 def evaluer_regles(poids: dict, mesures: dict, gabarit: dict, univers, persona: dict | None = None) -> list[dict]:
@@ -73,7 +99,7 @@ def evaluer_regles(poids: dict, mesures: dict, gabarit: dict, univers, persona: 
                        "valeur": nombre(mesures["paris_effectifs"]),
                        "ok": mesures["paris_effectifs"] >= g["paris_effectifs_min"] - EPS})
     if persona and persona.get("exclusions_esg"):
-        regles.append(_regle_esg(poids, titres))
+        regles.append(_regle_esg(poids, persona.get("portefeuille_suppose")))
     return regles
 
 
