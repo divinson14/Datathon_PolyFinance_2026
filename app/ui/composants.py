@@ -5,6 +5,7 @@ from html import escape
 import pandas as pd
 import streamlit as st
 
+from src.formatage import nombre
 from ui.style import COULEURS as C
 
 # Étiquettes des affirmations de l'Explicabilité → (fond, texte)
@@ -61,7 +62,7 @@ def etape_timeline(e: dict, derniere: bool = False, conteneur=st) -> None:
     """Une étape de la ligne de temps verticale : icône, statut coloré, une phrase, durée, trace ; détail repliable."""
     couleur = STATUTS_ETAPE.get(e.get("statut"), C["gris"])
     icone = ICONES_AGENT.get(e["agent"].split(" · ")[0], "•")
-    meta = " · ".join(x for x in [f"{e['duree']:.1f} s" if e.get("duree") is not None else None,
+    meta = " · ".join(x for x in [f"{nombre(e['duree'], 1)} s" if e.get("duree") is not None else None,
                                   f"trace {e['trace']}" if e.get("trace") else None] if x)
     conteneur.markdown(
         f"<div class='af-etape'><div class='rail'><div class='icone' style='border-color:{couleur};color:{couleur}'>"

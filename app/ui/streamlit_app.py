@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))   # rend « src » 
 
 import altair as alt
 import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
 
 from src import bedrock_client, config
@@ -24,6 +25,19 @@ from ui.style import COULEURS, injecter_style
 
 st.set_page_config(page_title="AlphaForge", layout="wide")
 injecter_style()
+
+ORDRE_PERSONAS = ["robert", "amira", "mateo"]
+PALETTE_ANNEAU = ["#1F6FEB", "#5B8DEF", "#93B4F5", "#C9D7F5", "#12805C", "#7FB8A3",
+                  "#B7791F", "#D9B98A", "#6B7280", "#A1A6AE", "#D1D5DB", "#E7E7E3"]   # sobre : bleus, verts, ocres, gris
+
+
+def mise_en_page(fig, hauteur: int):
+    """Mise en page plotly commune : nombres à la française (« 50 000 $ », « 16,2 % »), fond transparent."""
+    fig.update_layout(height=hauteur, separators=", ", margin=dict(t=10, b=10, l=10, r=10),
+                      paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                      font=dict(family="Inter, sans-serif", color=COULEURS["gris"]))
+    return fig
+
 
 etat = st.session_state
 etat.setdefault("persona", None)
@@ -53,11 +67,13 @@ if donnees_fictives():          # repli silencieux du chargeur : on le rend impo
 
 # ---------- Écran 1 : choix du profil ----------
 def ecran_profil():
-    st.title("Choisis ton profil d'investisseur")
+    st.title("Choisis ton profil d'investisseur", anchor=False)
     st.markdown("<div class='af-sous-titre'>Simulation éducative · personas fictifs · aucun conseil personnalisé</div>",
                 unsafe_allow_html=True)
     cols = st.columns(len(config.PERSONAS), gap="large")
-    for col, (pid, p) in zip(cols, config.PERSONAS.items()):
+    ordre = sorted(config.PERSONAS.items(),
+                   key=lambda kv: ORDRE_PERSONAS.index(kv[0]) if kv[0] in ORDRE_PERSONAS else len(ORDRE_PERSONAS))
+    for col, (pid, p) in zip(cols, ordre):
         with col.container(border=True):
             st.markdown(f"<div class='af-avatar'>{p['nom'][:1].upper()}</div>"
                         f"<div class='af-persona-nom'>{p['nom']}</div>"
@@ -109,21 +125,22 @@ def courbe_bascule(res):
         encre, fond = ("#E6E6E6", "#0E1117") if sombre else ("#31333F", "#FFFFFF")
     except Exception:                                       # noqa: BLE001
         encre, fond = "#8A8F98", "#FFFFFF"
-    df = df.assign(respecte=df["conforme"].map({True: "oui", False: "non"}))
+    df = df.assign(respecte=df["conforme"].map({True: "oui", False: "non"}), part_txt=df["part"].map(pct),
+                   risque_txt=df["part_risque"].map(pct), vol_txt=df["vol"].map(pct))
 
     axe_x = alt.X("part:Q", title=f"Part de {s} dans le portefeuille",
-                  axis=alt.Axis(format="%", tickCount=6, gridOpacity=0.35), scale=alt.Scale(domain=[0, xmax], nice=False))
+                  axis=alt.Axis(labelExpr=POURCENT_FR, tickCount=6, gridOpacity=0.35), scale=alt.Scale(domain=[0, xmax], nice=False))
     axe_y = alt.Y("part_risque:Q", title=f"Part du risque portée par {s}",
-                  axis=alt.Axis(format="%", tickCount=5, gridOpacity=0.35), scale=alt.Scale(domain=[0, 1]))
+                  axis=alt.Axis(labelExpr=POURCENT_FR, tickCount=5, gridOpacity=0.35), scale=alt.Scale(domain=[0, 1]))
     couches = []
     if seuil is not None:                                   # zone hors profil, discrète
         couches.append(alt.Chart(pd.DataFrame({"x": [seuil], "x2": [xmax]})).mark_rect(opacity=0.07, color=encre)
                        .encode(x="x:Q", x2="x2:Q"))
     couches.append(alt.Chart(df).mark_line(strokeWidth=2).encode(
         x=axe_x, y=axe_y,
-        tooltip=[alt.Tooltip("part:Q", title=f"Part de {s}", format=".1%"),
-                 alt.Tooltip("part_risque:Q", title="Part du risque", format=".1%"),
-                 alt.Tooltip("vol:Q", title="Volatilité du portefeuille", format=".1%"),
+        tooltip=[alt.Tooltip("part_txt:N", title=f"Part de {s}"),
+                 alt.Tooltip("risque_txt:N", title="Part du risque"),
+                 alt.Tooltip("vol_txt:N", title="Volatilité du portefeuille"),
                  alt.Tooltip("respecte:N", title="Respecte le profil")]))
     regle = pd.DataFrame({"y": [limite], "x": [xmax], "texte": [f"limite par titre : {pct(limite)}"]})
     couches.append(alt.Chart(regle).mark_rule(strokeDash=[4, 4], color=encre, opacity=0.6).encode(y="y:Q"))
@@ -153,6 +170,7 @@ def courbe_bascule(res):
 
 # ---------- Réponse dans le chat ----------
 GARDE_FOUS = ("Bedrock Guardrails", "Garde-fou local")
+POURCENT_FR = "replace(replace(format(datum.value, '.0%'), '%', ' %'), '.', ',')"   # axes Altair : « 20 % »
 
 
 def _verdict(res) -> tuple[str, str, list, str | None]:
@@ -201,14 +219,30 @@ def afficher_reponse(res, index):
     courbe_bascule(res)
     m = d["mesures"]
     with st.expander("Détail par ligne : part des dollars et part du risque"):
-        st.bar_chart(pd.DataFrame({"Part des dollars": pd.Series(m["poids"]), "Part du risque": pd.Series(m["parts_risque"])}),
-                     stack=False, horizontal=True, alt="Part des dollars et part du risque de chaque ligne du portefeuille demandé")
+        lignes_p = sorted(m["poids"], key=lambda k: -m["parts_risque"].get(k, 0.0))
+        barres = go.Figure()
+        for nom, serie, couleur in (("Part des dollars", m["poids"], "#C9D7F5"),
+                                    ("Part du risque", m["parts_risque"], COULEURS["accent"])):
+            vals = [serie.get(k, 0.0) for k in lignes_p]
+            barres.add_bar(name=nom, y=lignes_p, x=[100 * x for x in vals], orientation="h", marker_color=couleur,
+                           customdata=[pct(x) for x in vals],
+                           hovertemplate="%{y} · " + nom.lower() + " %{customdata}<extra></extra>")
+        mise_en_page(barres, 60 + 28 * len(lignes_p)).update_layout(
+            barmode="group", xaxis=dict(tickformat=",.0f", ticksuffix=" %", gridcolor="#EEEEEA"),
+            yaxis=dict(autorange="reversed"), legend=dict(orientation="h", y=1.08))
+        st.plotly_chart(barres, width="stretch", config={"displayModeBar": False})
     valeurs = {"Portefeuille actuel": d["base"]["valeurs"], f"Demande {pct(d['part'])}": d["rejeu"]["valeurs"]}
     if alt_:
         valeurs[f"Au point de bascule ({pct(alt_['part'])})"] = alt_["rejeu"]["valeurs"]
     st.caption(f"Ce que 2022 aurait fait à {money(res['persona']['capital'])} (valeur en fin de mois, en CAD)")
-    st.line_chart(pd.DataFrame(valeurs, index=["début"] + [f"{m:02d}" for m in range(1, len(d['base']['valeurs']))]),
-                  alt=f"Valeur simulée du portefeuille pendant 2022, avec et sans la demande")
+    mois = ["début"] + [f"{i:02d}/2022" for i in range(1, len(d["base"]["valeurs"]))]
+    rejeu = go.Figure()
+    for nom, serie in valeurs.items():
+        rejeu.add_scatter(x=mois, y=serie, mode="lines", name=nom,
+                          hovertemplate="%{x} · %{y:,.0f} $<extra>" + nom + "</extra>")
+    mise_en_page(rejeu, 300).update_layout(yaxis=dict(tickformat=",.0f", ticksuffix=" $", gridcolor="#EEEEEA"),
+                                           xaxis=dict(showgrid=False), legend=dict(orientation="h", y=1.12))
+    st.plotly_chart(rejeu, width="stretch", config={"displayModeBar": False})
     st.info(f"**Limites.** {f['limites']}")
     rejets = [e for e in res["etapes"] if e["agent"] == "Vérificateur de fidélité" and e["statut"] == "fail"]
     if rejets:
@@ -245,7 +279,6 @@ def _conformite_esg(p: dict, g: dict, univers, m: dict) -> tuple[str, str]:
 
 
 def section_compte(mandat: dict) -> None:
-    import plotly.graph_objects as go
     p, g = mandat["profil"], mandat["gabarit"]
     poids = p.get("portefeuille_suppose") or {}
     st.markdown("<div class='af-bandeau'>Compte de démonstration · données fictives · simulation, "
@@ -262,32 +295,35 @@ def section_compte(mandat: dict) -> None:
     carte_kpi("Volatilité annualisée", pct(m["vol"]), f"portefeuille actuel · limite du profil {pct(g['volatilite_max'])}", k[2])
     carte_kpi("Conformité ESG", esg, esg_detail, k[3])
 
-    gauche, droite = st.columns([1, 1.25], gap="large")
+    gauche, droite = st.columns([1.1, 1], gap="large")
     noms = dict(zip(univers["symbole"].astype(str), univers["nom"].astype(str)))
-    lignes = pd.DataFrame([{"Actif": s, "Nom": noms.get(s, s), "Poids": w, "Valeur (CAD)": w * p["capital"]}
-                           for s, w in sorted(poids.items(), key=lambda kv: -kv[1])])
+    tri = sorted(poids.items(), key=lambda kv: -kv[1])
+    lignes = pd.DataFrame([{"Actif": s, "Nom": noms.get(s, s), "Poids": pct(w), "Valeur": money(w * p["capital"])}
+                           for s, w in tri])
     with gauche:
         st.markdown("<div class='af-section'>Positions</div>", unsafe_allow_html=True)
         st.dataframe(lignes, hide_index=True, width="stretch",
-                     column_config={"Poids": st.column_config.NumberColumn(format="percent"),
-                                    "Valeur (CAD)": st.column_config.NumberColumn(format="%,.0f $")})
-        anneau = go.Figure(go.Pie(labels=lignes["Actif"], values=lignes["Poids"], hole=0.62, sort=False,
-                                  textinfo="label+percent", textposition="outside"))
-        anneau.update_layout(height=290, margin=dict(t=10, b=10, l=10, r=10), showlegend=False,
-                             paper_bgcolor="rgba(0,0,0,0)", font=dict(family="Inter", color=COULEURS["texte"]))
+                     column_config={"Actif": st.column_config.TextColumn(width="small"),
+                                    "Nom": st.column_config.TextColumn(width="medium"),
+                                    "Poids": st.column_config.TextColumn(width="small"),
+                                    "Valeur": st.column_config.TextColumn("Valeur (CAD)", width="small")})
+        anneau = go.Figure(go.Pie(labels=[s for s, _ in tri], values=[w for _, w in tri], hole=0.62, sort=False,
+                                  customdata=[pct(w) for _, w in tri], texttemplate="%{label}<br>%{customdata}",
+                                  hovertemplate="%{label} · %{customdata}<extra></extra>", textposition="outside",
+                                  marker=dict(colors=PALETTE_ANNEAU[:len(tri)], line=dict(color="#FFFFFF", width=2))))
+        mise_en_page(anneau, 290).update_layout(showlegend=False)
         st.plotly_chart(anneau, width="stretch", config={"displayModeBar": False})
     with droite:
-        st.markdown("<div class='af-section'>Valeur du portefeuille</div>", unsafe_allow_html=True)
+        st.markdown("<div class='af-section'>Valeur simulée du portefeuille</div>", unsafe_allow_html=True)
         duree = st.segmented_control("Période", ["1A", "3A", "5A"], default="5A", key="periode_compte",
                                      label_visibility="collapsed") or "5A"
         v = calculs.valeur_historique(poids, p["capital"], int(duree[0]))
         courbe = go.Figure(go.Scatter(x=v.index, y=v.values, mode="lines", line=dict(color=COULEURS["accent"], width=2),
                                       fill="tozeroy", fillcolor="rgba(31,111,235,0.06)",
-                                      hovertemplate="%{x|%d %b %Y}<br>%{y:,.0f} $<extra></extra>"))
-        courbe.update_layout(height=360, margin=dict(t=10, b=10, l=10, r=10), paper_bgcolor="rgba(0,0,0,0)",
-                             plot_bgcolor="rgba(0,0,0,0)", font=dict(family="Inter", color=COULEURS["gris"]),
-                             yaxis=dict(range=[v.min() * 0.97, v.max() * 1.02], gridcolor="#EEEEEA", tickformat=",.0f"),
-                             xaxis=dict(showgrid=False))
+                                      hovertemplate="%{x|%d/%m/%Y}<br>%{y:,.0f} $<extra></extra>"))
+        mise_en_page(courbe, 360).update_layout(
+            yaxis=dict(range=[v.min() * 0.97, v.max() * 1.02], gridcolor="#EEEEEA", tickformat=",.0f", ticksuffix=" $"),
+            xaxis=dict(showgrid=False, tickformat="%m/%Y"))
         st.plotly_chart(courbe, width="stretch", config={"displayModeBar": False})
         st.caption(f"Positions actuelles conservées sur {duree[0]} an(s), rééquilibrées chaque semaine · prix en CAD · "
                    "simulation à partir de l'historique, pas une performance réelle.")
@@ -302,7 +338,7 @@ def ecran_analyse():
     tete_g, tete_d = st.columns([4, 1])
     risque = mandat["gabarit"]["label"] if mandat["gabarit"] else "tolérance non précisée"
     age = f", {p['age']} ans" if p.get("age") else ""
-    tete_g.markdown(f"## Mon compte · {p['nom']}{age}")
+    tete_g.header(f"Mon compte · {p['nom']}{age}", anchor=False)
     tete_g.caption(f"{risque} · horizon {p['horizon']} · {p['objectif']}")
     for t in mandat["tensions"]:
         tete_g.warning(f"Tension dans le profil : {t}.", icon="⚠️")
