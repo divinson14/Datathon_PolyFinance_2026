@@ -5,6 +5,7 @@
     python tests/tester_profil.py --modeles       # liste les profils d'inférence Bedrock accessibles (pour remplir .env)
     python tests/tester_profil.py --bedrock       # VRAIS appels Bedrock (quelques centimes), comparés au mode local
     python tests/tester_profil.py --diagnostic    # UN appel par modèle, message d'erreur AWS complet
+    python tests/tester_profil.py --explicabilite # parcours complet Robert/Tesla : qui a rédigé la réponse, et pourquoi
 
 Rien n'est écrit ailleurs que dans traces_locales/. Aucun secret n'est affiché.
 """
@@ -18,8 +19,9 @@ parser.add_argument("--aws", action="store_true", help="contrôle de la configur
 parser.add_argument("--modeles", action="store_true", help="liste les profils d'inférence Bedrock")
 parser.add_argument("--bedrock", action="store_true", help="vrais appels Bedrock")
 parser.add_argument("--diagnostic", action="store_true", help="un appel par modèle, erreur complète")
+parser.add_argument("--explicabilite", action="store_true", help="parcours complet, auteur de la réponse")
 args = parser.parse_args()
-if args.bedrock or args.diagnostic:
+if args.bedrock or args.diagnostic or args.explicabilite:
     os.environ["MODE"] = "bedrock"           # avant tout import de src.config
 os.environ.setdefault("TRACES", "local")
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -118,8 +120,26 @@ def diagnostiquer():
             print(f"  ❌ {type(e).__name__} : {e}")
 
 
+def tester_explicabilite():
+    import time
+    from src.orchestrateur import executer
+    t0 = time.time()
+    res = executer("robert", "Tout le monde parle de Tesla, je pense mettre 30 % dedans.")
+    print(f"\nDurée : {time.time() - t0:.0f} s")
+    print(f"Auteur de la réponse : {res['fiche'].get('auteur')}")
+    for e in res["etapes"]:
+        if e["agent"] in ("Agent Explicabilité", "Vérificateur de fidélité"):
+            print(f"  {e['statut']:<4} {e['agent']} — {e['texte']} {e.get('note') or ''}")
+    print("\nRéponse :\n  " + res["fiche"]["intro"])
+    for l in res["fiche"]["lignes"]:
+        print(f"  [{l['tag']}] {l['texte']}")
+
+
 if args.modeles:
     lister_modeles()
+elif args.explicabilite:
+    if verifier_aws():
+        tester_explicabilite()
 elif args.diagnostic:
     if verifier_aws():
         diagnostiquer()
