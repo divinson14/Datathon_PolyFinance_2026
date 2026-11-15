@@ -8,6 +8,7 @@ Règle « aucun chiffre ne vient du LLM » :
   (montant / capital pour un montant en dollars) ;
 - chaque extraction laisse une trace dans le journal.
 """
+import difflib
 import json
 import re
 import unicodedata
@@ -182,17 +183,41 @@ def _chercher(motif: str, texte: str, flags=0) -> int | None:
     return m.start() if m else None
 
 
-def actifs_mentionnes(message: str, univers) -> list[str]:
-    """Symboles de l'univers cités dans le message, dans leur ordre d'apparition (sans doublon)."""
+def actifs_mentionnes(message: str, univers, approximations: list | None = None) -> list[str]:
+    """Symboles de l'univers cités dans le message, dans leur ordre d'apparition (sans doublon).
+
+    - tickers de 3 lettres ou plus : majuscules ou minuscules (« NVDA », « nvda ») ; tickers de 2 lettres (TD, PG, RY) :
+      majuscules seulement, pour ne pas confondre avec des mots ordinaires ;
+    - noms et alias (config/alias_actifs.yaml), sans accents ni majuscules ;
+    - fautes de frappe (« nvdia ») : approximation stricte (seuil dans config/profil.yaml), notée dans `approximations`
+      pour être affichée et tracée — jamais silencieuse.
+    """
     norm = _normaliser(message)
     positions: dict[str, int] = {}
+    cibles: dict[str, str] = {}                       # mot de référence (ticker ou alias en un mot) → symbole
     for symbole in univers["symbole"].astype(str):
-        courts = {symbole, re.sub(r"(\.TO|-USD)$", "", symbole)}
-        trouves = [_chercher(t, message) for t in courts]                         # tickers : majuscules seulement
-        trouves += [_chercher(_normaliser(a), norm) for a in ALIAS.get(symbole, [])]
+        court = re.sub(r"(\.TO|-USD)$", "", symbole)
+        trouves = [_chercher(t, message) for t in {symbole, court}]               # majuscules
+        if len(court) >= 3:
+            trouves.append(_chercher(court.lower(), norm))                         # minuscules (« nvda »)
+            cibles[court.lower()] = symbole
+        for a in ALIAS.get(symbole, []):
+            trouves.append(_chercher(_normaliser(a), norm))
+            if " " not in a and len(a) >= 4:
+                cibles[_normaliser(a)] = symbole
         trouves = [p for p in trouves if p is not None]
         if trouves:
             positions[symbole] = min(trouves)
+    if not positions:                                 # rien d'exact : on tente les fautes de frappe, mot par mot
+        for m in re.finditer(r"[a-z]{4,}", norm):
+            mot = m.group(0)
+            if mot in set(PROFIL["mots_de_relance_exclus_approx"]):
+                continue
+            proche = difflib.get_close_matches(mot, list(cibles), n=1, cutoff=PROFIL["seuil_approximation_actif"])
+            if proche and cibles[proche[0]] not in positions:
+                positions[cibles[proche[0]]] = m.start()
+                if approximations is not None:
+                    approximations.append(f"{mot} → {cibles[proche[0]]}")
     return sorted(positions, key=positions.get)
 
 
@@ -270,11 +295,15 @@ def nouvelle_cible(message: str) -> bool:
 # ---------- Extraction ----------
 
 def _extraction_locale(message: str, univers, persona: dict) -> dict:
-    mentionnes = actifs_mentionnes(message, univers)
+    approximations: list[str] = []
+    mentionnes = actifs_mentionnes(message, univers, approximations)
+    methode = "règles locales (alias + expressions régulières)"
+    if approximations:
+        methode += " · reconnu par approximation : " + ", ".join(approximations)
     return {"symboles_mentionnes": mentionnes,
             "symbole": mentionnes[0] if len(mentionnes) == 1 else None,
             "lecture": lire_part(message, persona["capital"]),
-            "methode": "règles locales (alias + expressions régulières)"}
+            "methode": methode}
 
 
 def _extraction_llm(message: str, univers, persona: dict) -> dict | None:
