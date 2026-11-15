@@ -22,5 +22,6 @@
     "GLD": 0.05
   },
   "portefeuille_suppose_libelle": "60 % obligations (XBB, ZST), 30 % actions larges (XIU, SPY), 5 % Fortis, 5 % or",
-  "message_exemple": "J'ai 200 000 $ de côté pour ma retraite. Tout le monde parle de Tesla, je pense mettre 30 % dedans. Bonne idée ?"
+  "message_exemple": "J'ai 200 000 $ de côté pour ma retraite. Tout le monde parle de Tesla, je pense mettre 30 % dedans. Bonne idée ?",
+  "met_a_l_epreuve": "remettre en question une demande médiatisée, incohérente avec son profil."
 }

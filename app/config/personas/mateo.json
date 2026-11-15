@@ -23,5 +23,6 @@
   },
   "portefeuille_suppose_libelle": "55 % actions larges dont 30 % filtrées ESG (ESGV), 35 % obligations, 5 % Fortis, 5 % or",
   "message_exemple": "Je veux mettre 10 % de mon portefeuille dans Tesla, mais je tiens aux critères ESG.",
-  "exclusions_esg": true
+  "exclusions_esg": true,
+  "met_a_l_epreuve": "intégrer ses préférences ESG, pas seulement le rendement et le risque."
 }

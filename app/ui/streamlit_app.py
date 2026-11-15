@@ -68,7 +68,16 @@ if donnees_fictives():          # repli silencieux du chargeur : on le rend impo
 
 # ---------- Écran 1 : choix du profil ----------
 def ecran_profil():
-    st.title("Choisis ton profil d'investisseur", anchor=False)
+    st.markdown("<div class='af-hero'>On ne te dit pas quoi acheter.<br>"
+                "<span>On te montre où ta décision cesse d'être cohérente avec toi.</span></div>"
+                "<div class='af-hero-accroche'>30 % de tes dollars peuvent devenir 90 % de ton risque. "
+                "AlphaForge calcule la limite de ton profil, et prouve chaque chiffre.</div>"
+                "<div class='af-etapes'>"
+                "<div><b>1</b> Choisis un profil</div>"
+                "<div><b>2</b> Pose ta question en langage courant</div>"
+                "<div><b>3</b> Vois où ta demande bascule, chiffres vérifiés</div></div>",
+                unsafe_allow_html=True)
+    st.subheader("Choisis ton profil d'investisseur", anchor=False)
     st.markdown("<div class='af-sous-titre'>Simulation éducative · personas fictifs · aucun conseil personnalisé</div>",
                 unsafe_allow_html=True)
     cols = st.columns(len(config.PERSONAS), gap="large")
@@ -80,7 +89,9 @@ def ecran_profil():
                         f"<div class='af-persona-nom'>{p['nom']}</div>"
                         f"<div class='af-persona-meta'>{p['age']} ans · risque {config.GABARITS[p['risque']]['label'].lower()}"
                         f" · horizon {p['horizon']}</div>"
-                        f"<div class='af-persona-phrase'>{p['metier']}. {p['objectif']}.</div>", unsafe_allow_html=True)
+                        f"<div class='af-persona-phrase'>{p['metier']}. {p['objectif']}.</div>"
+                        + (f"<div class='af-persona-test'>Ce qu'il met à l'épreuve : {p['met_a_l_epreuve']}</div>"
+                           if p.get("met_a_l_epreuve") else ""), unsafe_allow_html=True)
             a_faire = p.get("a_faire")
             if st.button(f"Choisir {p['nom']}", key=pid, width="stretch", type="primary", disabled=bool(a_faire)):
                 etat.persona, etat.messages, etat.etapes, etat.memoire, etat.demande_en_attente = pid, [], [], None, None
@@ -236,13 +247,14 @@ def afficher_reponse(res, index):
     if alt_:
         valeurs[f"Au point de bascule ({pct(alt_['part'])})"] = alt_["rejeu"]["valeurs"]
     st.caption(f"Ce que 2022 aurait fait à {money(res['persona']['capital'])} (valeur en fin de mois, en CAD)")
-    mois = ["début"] + [f"{i:02d}/2022" for i in range(1, len(d["base"]["valeurs"]))]
+    noms_mois = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."]
+    mois = ["début"] + noms_mois[:len(d["base"]["valeurs"]) - 1]
     rejeu = go.Figure()
     for nom, serie in valeurs.items():
         rejeu.add_scatter(x=mois, y=serie, mode="lines", name=nom,
                           hovertemplate="%{x} · %{y:,.0f} $<extra>" + nom + "</extra>")
     mise_en_page(rejeu, 300).update_layout(yaxis=dict(tickformat=",.0f", ticksuffix=" $", gridcolor="#EEEEEA"),
-                                           xaxis=dict(showgrid=False), legend=dict(orientation="h", y=1.12))
+                                           xaxis=dict(showgrid=False, tickangle=0), legend=dict(orientation="h", y=1.12))
     st.plotly_chart(rejeu, width="stretch", config={"displayModeBar": False})
     st.info(f"**Limites.** {f['limites']}")
     rejets = [e for e in res["etapes"] if e["agent"] == "Vérificateur de fidélité" and e["statut"] == "fail"]
@@ -263,7 +275,10 @@ def afficher_reponse(res, index):
                         f"Sortie : **{t['sortie']}**  \nSource : {t['source']} · Période : {t['periode']}")
     with st.expander("Voir le mandat JSON (produit par l'Agent Profil)"):
         st.json(res["mandat"], expanded=False)
-    st.caption(f"Données : {res['source_donnees']} · montants et rendements en dollars canadiens (CAD)")
+    src = res["source_donnees"]
+    st.caption(src if "FICTIVES" in src else
+               "Sources : Yahoo Finance (prix ajustés des dividendes et fractionnements) · Banque du Canada (taux de change, "
+               "taux directeur) · ESG : règle de l'équipe et fonds ESGV · montants en dollars canadiens (CAD)")
 
 
 # ---------- Écran 2 : « Mon compte » (compte de démonstration du persona) ----------
@@ -275,15 +290,15 @@ def _conformite_esg(p: dict, g: dict, univers, m: dict) -> tuple[str, str]:
     if not regle["ok"]:
         return "Controverse", regle["valeur"]
     if regle.get("manquant"):
-        return "Information manquante", regle["valeur"]
+        return "À vérifier", regle["valeur"]
     return "Conforme", regle["valeur"]
 
 
 def section_compte(mandat: dict) -> None:
     p, g = mandat["profil"], mandat["gabarit"]
     poids = p.get("portefeuille_suppose") or {}
-    st.markdown("<div class='af-bandeau'>Compte de démonstration · données fictives · simulation, "
-                "aucune transaction réelle</div>", unsafe_allow_html=True)
+    st.markdown("<div class='af-bandeau'>Compte fictif · prix de marché réels (Yahoo Finance, convertis en CAD au taux "
+                "de la Banque du Canada) · simulation, aucune transaction réelle</div>", unsafe_allow_html=True)
     if not poids or not g:
         st.info("Le compte de démonstration s'affichera dès que la tolérance au risque sera précisée.")
         return
