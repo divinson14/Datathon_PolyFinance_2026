@@ -140,31 +140,22 @@ Sortie : `data/processed/esg_drapeaux.csv` (via `02_construire_esg.py`). Sources
   JAMAIS de source de chiffres. Correction du 2026-11-14 : un chiffre rejeté était recopié dans la trace de rejet,
   puis accepté au contrôle suivant (régénération stricte). Test de non-régression dans tests/test_explication_verifiee.py.
 
-## « Et si… » (orchestrateur.et_si, config/scenarios.yaml, src/outils/differentiel.py)
-- **Pas de nouvel agent** : `et_si(res, parametre, valeur)` relance Profil → Analyste → Gouvernance → Explicabilité
-  sur une **copie** du mandat d'origine avec **une seule** modification, dans le même mode que l'analyse d'origine.
-  Le mandat, le journal et la réponse d'origine ne sont jamais modifiés (journal copié, numérotation des traces continue).
-  Toujours à partir de l'analyse d'**origine** (pas d'« Et si » en chaîne) ; pas de Guardrails ni de relecture du message :
-  la demande d'origine est reprise telle quelle.
-- **Liste blanche** (`config/scenarios.yaml`) : tolérance (niveau suivant), part (moitié), horizon (10 ans). Toute autre
-  valeur est refusée. Les boutons sont masqués quand ils seraient sans effet (Amira : déjà « Élevé » ; Mateo : « 8 à 12 ans »
-  inclut 10 ans ; moitié < 0,5 point). Boutons uniquement : pas de texte libre pour l'instant.
-- **Effets** :
-  - tolérance → autre gabarit → limites recalculées (Robert « Modéré » : point de bascule TSLA 3 % → 4 %) ;
-  - part → nouvelle part analysée, limites inchangées ;
-  - horizon → **limites inchangées** : elles dépendent de la tolérance, pas de l'horizon (règle documentée de l'Agent Profil) ;
-    seules les tensions sont recalculées (profil saisi « élevé + 3 ans » → 10 ans : la tension disparaît). La réponse le dit.
-- **Différentiel calculé par le code** (une trace) : gabarit, 7 limites, horizon, part, part du risque de l'actif,
-  volatilité / pire baisse, règles violées, facteur limitant, point de bascule, statut, alternative, rejeu 2022, tensions.
-  L'explication ne cite que ces valeurs ; chaque ligne est étiquetée « Scénario fictif » ; vérificateur de fidélité
-  et mention CAD comme pour toute réponse. Rédaction par **gabarit** (une version LLM pourra s'y ajouter).
-- **Amélioration future : tolérance vs capacité.** Aujourd'hui les limites ne dépendent que de la tolérance (ce que la
-  personne accepte). On pourrait y ajouter la capacité (ce que l'horizon permet) avec le principe « le plus prudent des
-  deux ». Pièges identifiés avant de le faire : (1) ne prendre dans la capacité que les seuils liés au temps
-  (volatilité, pire baisse, obligations min) — sinon `paris_effectifs_min` (défini seulement pour « Élevé ») s'ajouterait
-  à Mateo dont le portefeuille de base (1,7 pari) deviendrait non conforme ; (2) cela remplace la règle « tensions signalées,
-  jamais corrigées » et change le scénario « profil saisi élevé + 3 ans » ; (3) Amira à 3 ans deviendrait « impossible »
-  (portefeuille actuel non conforme), à expliquer comme tel.
+## « Et si j'acceptais plus de risque ? » (orchestrateur.plus_de_risque)
+- **Version simple, sans nouvel agent ni explication spéciale** : `plus_de_risque(res)` relance `executer()` avec le
+  MÊME message et une **copie** du profil dont la tolérance passe au niveau suivant (ordre de config/profil.yaml).
+  Toute la chaîne normale tourne (Guardrails → Profil → Analyste → Gouvernance → Explicabilité + vérificateur).
+- La réponse normale est précédée d'un bandeau écrit **par le code** à partir des deux résultats (points de bascule) :
+  « Scénario fictif — tolérance « Modéré » au lieu de « Faible à modéré » : part acceptable 3 % → 4 % » (Robert, TSLA 30 %).
+- L'analyse, le mandat, le journal d'origine et le persona de référence ne sont jamais modifiés (testé).
+- Un seul bouton, sous les réponses d'origine ; masqué si la tolérance est déjà « Élevé » ou sous un scénario fictif.
+- Portefeuille actuel supposé inchangé (une seule hypothèse modifiée), noté dans les hypothèses du mandat.
+- **Écarté pour tenir avant le gel du code** : boutons « moitié moins » et « horizon 10 ans », différentiel détaillé,
+  explication dédiée, texte libre. (Une première version complète existe dans l'historique de la branche feat/et-si.)
+- **Amélioration future : tolérance vs capacité.** Aujourd'hui les limites ne dépendent que de la tolérance ; l'horizon
+  ne crée que des tensions. Ajouter la capacité (« le plus prudent des deux ») demanderait de ne prendre que les seuils
+  liés au temps (volatilité, pire baisse, obligations min) — sinon `paris_effectifs_min` (défini pour « Élevé » seulement)
+  rendrait le portefeuille de base de Mateo non conforme —, de revoir la règle « tensions jamais corrigées » et le
+  scénario « profil saisi élevé + 3 ans », et d'expliquer qu'Amira à 3 ans deviendrait « impossible ».
 
 ## Services AWS
 | Service | Pourquoi |
@@ -182,8 +173,8 @@ Sortie : `data/processed/esg_drapeaux.csv` (via `02_construire_esg.py`). Sources
 - 2026-11-14 — Trous dans les séries : report de la dernière valeur sur 3 jours de bourse au plus — les trous viennent
   des fériés propres à la TSX ou aux bourses américaines (27 jours par titre sur 5 ans) ; aucun trou plus long n'existe,
   donc aucune valeur inventée au-delà d'un congé — P1
-- 2026-11-14 — « Et si… » limité à tolérance / part / horizon, boutons seulement, sans table de capacité — tenir avant
-  le gel du code ; l'horizon ne crée que des tensions (règle existante conservée) — P1
+- 2026-11-14 — « Et si » réduit à un bouton « plus de risque » (executer() relancé sur une copie du profil,
+  bandeau calculé par le code) — tenir avant le gel du code — P1
 - 2026-11-14 — Audit des données (docs/audit_donnees.md) : aucun point bloquant ; bandeau « données fictives »,
   test anti-repli (tests/test_donnees.py), mention CAD dans traces/explication/interface, limites documentées — P1
 - 2026-11-14 — Correction de `01_nettoyer_prix.py` : le report se fait maintenant APRÈS la réduction aux jours de bourse —

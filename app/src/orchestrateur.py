@@ -1,34 +1,33 @@
 """Orchestrateur DÉTERMINISTE : enchaîne les agents, gère la boucle de correction (max. 3 tentatives)
-et publie chaque étape via on_etape (l'interface l'affiche au fur et à mesure).
-
-- executer() : Guardrails → Profil → Analyste → Gouvernance → Explicabilité ;
-- et_si()    : relance Profil → Analyste → Gouvernance → Explicabilité sur une COPIE du mandat d'origine
-               avec UNE modification (tolérance, horizon ou part). L'analyse d'origine n'est jamais modifiée.
-"""
-import copy
-
+et publie chaque étape via on_etape (l'interface l'affiche au fur et à mesure)."""
 from src import config
 from src.agents import analyste, explicabilite, gouvernance, profil
 from src.donnees.chargeur import charger
 from src.formatage import nombre, pct
-from src.outils import differentiel
 from src.traces.journal import Journal
 from src.verif import fidelite
 
 
 def executer(persona_id: str | None, message: str, style: str | None = None, on_etape=None,
-             profil_saisi: dict | None = None) -> dict:
-    """persona_id = persona de référence ; OU profil_saisi = 5 champs (age, tolerance, horizon_ans, objectif, esg[, capital])."""
+             profil_saisi: dict | None = None, tolerance: str | None = None) -> dict:
+    """persona_id = persona de référence ; OU profil_saisi = 5 champs (age, tolerance, horizon_ans, objectif, esg[, capital]).
+    tolerance = scénario fictif : la tolérance d'une COPIE du profil est remplacée (voir plus_de_risque)."""
     prix, univers, source = charger()
     journal = Journal()
     etapes = []
-    mandat = profil.construire_mandat(persona_id, profil_saisi, journal)
+    mandat = profil.construire_mandat(persona_id, profil_saisi, journal, tolerance=tolerance)
+    entree = {"persona_id": persona_id, "profil_saisi": profil_saisi, "message": message}   # pour relancer (Et si)
     persona, gabarit = mandat["profil"], mandat["gabarit"]
     style = style or ("avance" if persona["niveau_experience"] == "avance" else "inter")
-    etape = _publieur(etapes, on_etape)
+
+    def etape(agent, statut, texte, **details):
+        e = {"agent": agent, "statut": statut, "texte": texte, **details}
+        etapes.append(e)
+        if on_etape:
+            on_etape(e)
 
     def arret():
-        return {"arret": True, "etapes": etapes, "journal": journal, "persona": persona, "mandat": mandat}
+        return {"arret": True, "etapes": etapes, "journal": journal, "persona": persona, "mandat": mandat, "entree": entree}
 
     # 1. Garde-fou
     if profil.demande_de_transaction(message):
@@ -49,8 +48,11 @@ def executer(persona_id: str | None, message: str, style: str | None = None, on_
         return arret()
     symbole, part = dem["symbole"], float(dem["part"])
     g = gabarit
-    seuils = _seuils(g)
-    remarques = _remarques(mandat)
+    seuils = (f"poids max/titre {pct(g['poids_max_par_titre'])} · part du risque max/titre {pct(g['part_risque_max_par_titre'])} · "
+              f"vol. max {pct(g['volatilite_max'])} · pire baisse max {pct(g['pire_baisse_max'])} · "
+              f"obligations min {pct(g['obligations_min'])} · crypto max {pct(g['crypto_max'])}")
+    remarques = ([f"Tension : {t}." for t in mandat["tensions"]]
+                 + [f"Information manquante : {', '.join(mandat['informations_manquantes'])}."] * bool(mandat["informations_manquantes"]))
     etape("Agent Profil", "warn", "Mandat construit et demande comprise · les hypothèses sont affichées"
           + (f" · {len(mandat['tensions'])} tension(s) dans le profil" if mandat["tensions"] else ""),
           trace=mandat["trace"], note=" ".join(remarques) or None,
@@ -61,38 +63,6 @@ def executer(persona_id: str | None, message: str, style: str | None = None, on_
                   ("Profil", f"{mandat['source']} · horizon {persona['horizon']}"),
                   *[("Hypothèse", h) for h in mandat["hypotheses"]],
                   ("Traces", f"{mandat['trace']} (mandat) · {dem['trace']} (demande)")])
-    return _analyser(journal, etapes, etape, mandat, symbole, part, univers, source, style)
-
-
-def _publieur(etapes: list, on_etape):
-    """Fonction etape(agent, statut, texte, **details) : ajoute l'étape et la publie en direct à l'interface."""
-    def etape(agent, statut, texte, **details):
-        e = {"agent": agent, "statut": statut, "texte": texte, **details}
-        etapes.append(e)
-        if on_etape:
-            on_etape(e)
-    return etape
-
-
-def _seuils(g: dict) -> str:
-    return (f"poids max/titre {pct(g['poids_max_par_titre'])} · part du risque max/titre {pct(g['part_risque_max_par_titre'])} · "
-            f"vol. max {pct(g['volatilite_max'])} · pire baisse max {pct(g['pire_baisse_max'])} · "
-            f"obligations min {pct(g['obligations_min'])} · crypto max {pct(g['crypto_max'])}")
-
-
-def _remarques(mandat: dict) -> list[str]:
-    return ([f"Tension : {t}." for t in mandat["tensions"]]
-            + [f"Information manquante : {', '.join(mandat['informations_manquantes'])}."] * bool(mandat["informations_manquantes"]))
-
-
-def _analyser(journal, etapes: list, etape, mandat: dict, symbole: str, part: float, univers, source: str,
-              style: str, redacteur=None) -> dict:
-    """Étapes 3 à 5 (Analyste → Gouvernance + boucle de correction → Explicabilité + vérificateur).
-    Partagées par executer() et et_si() : même code, mêmes garde-fous.
-    `redacteur(contexte, journal, style, autorise, etape) -> (fiche, verif)` remplace rediger_verifie (« Et si »)."""
-    persona, gabarit = mandat["profil"], mandat["gabarit"]
-    g = gabarit
-    seuils = _seuils(g)
 
     # 3. Agent Analyste, tentative 1
     d = analyste.analyser_demande(journal, persona, symbole, part, gabarit, univers)
@@ -160,21 +130,19 @@ def _analyser(journal, etapes: list, etape, mandat: dict, symbole: str, part: fl
     autorise = " ".join([str(persona["capital"]), persona["horizon"], persona["portefeuille_suppose_libelle"],
                          str(config.CALCUL["annee_scenario"]), str(len(verd["regles"])), seuils,
                          nombre(g["paris_effectifs_min"]) if g.get("paris_effectifs_min") is not None else ""])
-    fiche, verif = (redacteur or rediger_verifie)(contexte, journal, style, autorise, etape)
+    fiche, verif = rediger_verifie(contexte, journal, style, autorise, etape)
 
     return {"arret": False, "etapes": etapes, "journal": journal, "persona": persona, "gabarit": gabarit,
             "symbole": symbole, "demande": d, "alternative": alt, "verdicts": verd, "fiche": fiche,
-            "verif": verif, "contexte": contexte, "source_donnees": source, "mandat": mandat, "autorise": autorise}
+            "verif": verif, "contexte": contexte, "source_donnees": source, "mandat": mandat, "autorise": autorise,
+            "entree": entree}
 
 
-def rediger_verifie(contexte: dict, journal, style: str, autorise: str, etape, rediger=None, gabarit=None):
+def rediger_verifie(contexte: dict, journal, style: str, autorise: str, etape):
     """Rédaction + vérificateur de fidélité, avec régénération stricte puis gabarit sûr en dernier recours.
-    AUCUN texte n'est affiché sans être passé par ici.
-    `rediger` / `gabarit` : variantes « Et si » (même contrat que explicabilite.rediger / _gabarit_texte)."""
-    rediger = rediger or explicabilite.rediger
-    gabarit = gabarit or explicabilite._gabarit_texte
+    AUCUN texte n'est affiché sans être passé par ici."""
     niveau = "avancé" if style == "avance" else "intermédiaire"
-    fiche = rediger(contexte, journal, style)
+    fiche = explicabilite.rediger(contexte, journal, style)
     etape("Agent Explicabilité", "ok", f"Réponse rédigée au niveau « {niveau} »"
           + (" par le LLM" if fiche.get("auteur") == "llm" else f" ({fiche.get('auteur', 'gabarit')})"),
           note=f"{len(fiche['lignes'])} affirmations étiquetées (Fait / Hypothèse / Scénario fictif), reliées à leurs traces.")
@@ -183,10 +151,10 @@ def rediger_verifie(contexte: dict, journal, style: str, autorise: str, etape, r
     if not verif["ok"]:
         etape("Vérificateur de fidélité", "fail", "Réponse rejetée → régénération en mode strict",
               note=verif["motif"] + ".", trace=verif["trace"])
-        fiche = rediger(contexte, journal, style, strict=True)
+        fiche = explicabilite.rediger(contexte, journal, style, strict=True)
         verif = fidelite.verifier(journal, fiche, autorise, version + 1)
         if not verif["ok"]:                     # dernier recours : gabarit sûr
-            fiche = gabarit(contexte, style)
+            fiche = explicabilite._gabarit_texte(contexte, style)
             verif = fidelite.verifier(journal, fiche, autorise, version + 2)
     etape("Vérificateur de fidélité", "ok" if verif["ok"] else "fail", "Réponse validée" if verif["ok"] else "Réponse non validée",
           note=f"{verif['total']}/{verif['total']} chiffres retrouvés dans les traces." if verif["ok"] else "", trace=verif["trace"])
@@ -208,92 +176,37 @@ def reformuler(res: dict, style: str, on_etape=None) -> dict:
     return res
 
 
-def valeur_et_si_valide(parametre: str, valeur) -> bool:
-    """La valeur respecte-t-elle la liste blanche de config/scenarios.yaml ? Code pur."""
-    regle = config.SCENARIOS.get(parametre)
-    if regle is None:
-        return False
-    if regle["type"] == "gabarit":
-        return valeur in regle["valeurs_permises"]
-    if regle["type"] == "part":
-        return isinstance(valeur, (int, float)) and regle["part_min"] <= valeur < 1
-    if regle["type"] == "annees":
-        return isinstance(valeur, (int, float)) and regle["min"] <= valeur <= regle["max"]
-    return False
+# ---------- « Et si j'acceptais plus de risque ? » (scénario fictif) ----------
+
+def tolerance_suivante(res: dict) -> str | None:
+    """Niveau de tolérance suivant (ordre de config/profil.yaml), ou None si le bouton serait sans effet :
+    analyse arrêtée, déjà un scénario fictif, ou tolérance déjà au niveau le plus élevé."""
+    if res.get("arret") or res.get("scenario_fictif"):
+        return None
+    ordre = config.PROFIL["tolerances"]
+    actuelle = res["gabarit"]["id"]
+    i = ordre.index(actuelle)
+    return ordre[i + 1] if i + 1 < len(ordre) else None
 
 
-def options_et_si(res: dict) -> list[dict]:
-    """Boutons « Et si… » proposés sous une réponse d'ORIGINE : [{parametre, valeur, bouton, effet}].
-    Un bouton sans effet est masqué (règles et valeurs dans config/scenarios.yaml). Code pur."""
-    if res.get("arret") or res.get("et_si"):
-        return []
-    options = []
-    for parametre, regle in config.SCENARIOS.items():
-        valeur = None
-        if parametre == "tolerance":
-            ordre = regle["valeurs_permises"]
-            actuel = res["mandat"]["profil"]["risque"]
-            if actuel in ordre and ordre.index(actuel) + 1 < len(ordre):
-                valeur = ordre[ordre.index(actuel) + 1]
-        elif parametre == "part":
-            moitie = float(res["mandat"]["demande"]["part"]) * regle["facteur"]
-            valeur = moitie if moitie >= regle["part_min"] else None
-        elif parametre == "horizon":
-            h_min, h_max = profil.horizon_en_annees(res["mandat"]["profil"].get("horizon"))
-            cible = regle["valeur"]
-            deja = h_min is not None and h_min <= cible and (h_max is None or cible <= h_max)
-            valeur = None if deja else cible
-        if valeur is not None and valeur_et_si_valide(parametre, valeur):
-            options.append({"parametre": parametre, "valeur": valeur, "bouton": regle["bouton"], "effet": regle["effet"]})
-    return options
+def _part_acceptable(res: dict) -> str:
+    """Point de bascule (part maximale compatible avec le mandat), tel que calculé par l'outil point_de_bascule."""
+    b = res["demande"]["bascule"]
+    return pct(b["part_max"]) if b["base_conforme"] and b["part_max"] is not None else "aucune"
 
 
-def et_si(res: dict, parametre: str, valeur, on_etape=None) -> dict:
-    """« Et si… » : UNE modification (tolerance | horizon | part) appliquée à une COPIE du mandat d'origine,
-    puis Profil → Analyste → Gouvernance → Explicabilité, dans le même mode que l'analyse d'origine.
-
-    - part toujours de l'analyse d'ORIGINE (pas d'un autre « Et si ») ;
-    - le mandat, le journal et la réponse d'origine ne sont jamais modifiés (journal copié, numérotation continue) ;
-    - pas de Guardrails ni de relecture du message : la demande d'origine est reprise telle quelle.
-    Renvoie un résultat au même format qu'executer(), avec en plus res["et_si"] et res["origine"]."""
-    if res.get("arret"):
-        raise ValueError("« Et si » impossible : l'analyse d'origine s'est arrêtée avant les calculs.")
-    if res.get("et_si"):
-        raise ValueError("« Et si » se lance depuis l'analyse d'origine, pas depuis un autre « Et si ».")
-    if not valeur_et_si_valide(parametre, valeur):
-        raise ValueError(f"« Et si » hors liste blanche (config/scenarios.yaml) : {parametre} = {valeur!r}")
-    _, univers, source = charger()
-    journal = res["journal"].copie()
-    etapes = []
-    etape = _publieur(etapes, on_etape)
-    origine = res["mandat"]
-    mandat = profil.mandat_modifie(origine, parametre, valeur, journal)
-    persona, g = mandat["profil"], mandat["gabarit"]
-    symbole = res["symbole"]
-    part = float(valeur) if parametre == "part" else float(origine["demande"]["part"])
-    mandat["demande"] = {**copy.deepcopy(origine["demande"]), "part": part}
-    etape("Agent Profil", "warn", f"{mandat['et_si']['libelle']} · mandat copié, l'analyse d'origine reste intacte"
-          + (f" · {len(mandat['tensions'])} tension(s) dans le profil" if mandat["tensions"] else ""),
-          trace=mandat["trace"], note=" ".join(_remarques(mandat)) or None,
-          mandat=[("Modification (scénario fictif)", mandat["et_si"]["libelle"]),
-                  ("Actif demandé", symbole), ("Part demandée", pct(part)),
-                  ("Gabarit appliqué", f"« {g['label']} » (config/)"),
-                  ("Seuils (hypothèses de l'équipe)", _seuils(g)),
-                  ("Profil", f"{mandat['source']} · horizon {persona['horizon']}"),
-                  ("Traces", f"{mandat['trace']} (mandat modifié) · {origine['trace']} (mandat d'origine)")])
-    def rediger_et_si(contexte, journal, style, autorise, etape):
-        # Différentiel calculé par le CODE (une trace), AVANT toute rédaction : l'explication ne cite que ces valeurs.
-        diff = differentiel.comparer(journal, res, contexte, mandat["et_si"]["libelle"])
-        contexte["differentiel"], contexte["et_si"] = diff, dict(mandat["et_si"])
-        etape("Orchestrateur", "ok", f"Différentiel avant / après calculé par le code · {len(diff['changements'])} "
-              "élément(s) modifié(s)", trace=diff["trace"],
-              note=("Modifié : " + ", ".join(diff["changements"]) + ".") if diff["changements"] else "Aucun élément modifié.")
-        return rediger_verifie(contexte, journal, style, autorise, etape,
-                               rediger=explicabilite.rediger_et_si, gabarit=explicabilite.gabarit_et_si)
-
-    nouveau = _analyser(journal, etapes, etape, mandat, symbole, part, univers, source, res["fiche"]["style"],
-                        redacteur=rediger_et_si)
-    nouveau["et_si"] = dict(mandat["et_si"])
-    nouveau["differentiel"] = nouveau["contexte"]["differentiel"]
-    nouveau["origine"] = res
+def plus_de_risque(res: dict, on_etape=None) -> dict:
+    """Relance executer() avec une COPIE du profil dont la tolérance passe au niveau suivant, MÊME message.
+    L'analyse d'origine n'est jamais modifiée. Le bandeau est écrit par le code à partir des deux résultats."""
+    suivante = tolerance_suivante(res)
+    if suivante is None:
+        raise ValueError("Aucun niveau de tolérance plus élevé à simuler pour cette analyse.")
+    e = res["entree"]
+    nouveau = executer(e["persona_id"], e["message"], on_etape=on_etape, profil_saisi=e["profil_saisi"],
+                       tolerance=suivante)
+    avant, apres = res["gabarit"]["label"], config.GABARITS[suivante]["label"]
+    bandeau = f"Scénario fictif — tolérance « {apres} » au lieu de « {avant} »"
+    if not nouveau["arret"]:
+        bandeau += f" : part acceptable {_part_acceptable(res)} → {_part_acceptable(nouveau)}"
+    nouveau["scenario_fictif"] = bandeau
     return nouveau

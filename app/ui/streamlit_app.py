@@ -14,7 +14,7 @@ from src import config
 from src.agents import explicabilite, profil
 from src.donnees.chargeur import LIBELLE_DEMO, donnees_fictives
 from src.formatage import money, pct
-from src.orchestrateur import et_si, executer, options_et_si, reformuler
+from src.orchestrateur import executer, plus_de_risque, reformuler, tolerance_suivante
 
 st.set_page_config(page_title="AlphaForge AI", layout="wide")
 st.markdown("""<style>
@@ -167,19 +167,12 @@ def courbe_bascule(res):
 
 # ---------- Réponse dans le chat ----------
 def afficher_reponse(res, index):
+    if res.get("scenario_fictif"):           # bandeau écrit par le code (orchestrateur.plus_de_risque)
+        st.info(f"🔀 {res['scenario_fictif']}")
     if res["arret"]:
         st.markdown(res["etapes"][-1]["texte"])
         return
     f, d, alt_ = res["fiche"], res["demande"], res["alternative"]
-    es = res.get("et_si")
-    if es:                                   # réponse « Et si » : tableau avant / après calculé par le code
-        st.caption(f"🔀 **Scénario fictif « Et si »** — {es['libelle'].removeprefix('Et si · ')} · "
-                   "l'analyse d'origine reste inchangée")
-        diff = res["differentiel"]
-        st.dataframe(pd.DataFrame([{"Élément": l["element"], "Avant": l["avant"], "Après": l["apres"],
-                                    "Modifié": "🔸 oui" if l["change"] else ""} for l in diff["lignes"]]),
-                     hide_index=True, width="stretch")
-        st.caption(f"Différentiel calculé par le code, sans LLM · trace {diff['trace']}")
     auteur = f.get("auteur", "gabarit")
     st.caption("Rédigé par le LLM (Amazon Bedrock), chiffres contrôlés par le code" if auteur == "llm"
                else f"Rédigé par un gabarit de texte ({auteur}), chiffres contrôlés par le code")
@@ -207,20 +200,16 @@ def afficher_reponse(res, index):
                    "sans formulation de conseil.", title="Le vérificateur a bloqué une version précédente de cette réponse",
                    icon=":material/shield:")
     st.success(f"Chiffres vérifiés : chacun provient d'une trace de calcul ({res['verif']['trace']}).")
-    if not es:                               # reformulation et « Et si » : seulement sous une réponse d'ORIGINE
-        autre = "inter" if f["style"] == "avance" else "avance"
-        if st.button("Explique-moi plus simplement" if autre == "inter" else "Version plus technique", key=f"style{index}"):
-            with st.spinner("L'Agent Explicabilité reformule, puis le vérificateur contrôle chaque chiffre…"):
-                reformuler(res, autre, on_etape=etat.etapes.append)
+    autre = "inter" if f["style"] == "avance" else "avance"
+    if st.button("Explique-moi plus simplement" if autre == "inter" else "Version plus technique", key=f"style{index}"):
+        with st.spinner("L'Agent Explicabilité reformule, puis le vérificateur contrôle chaque chiffre…"):
+            reformuler(res, autre, on_etape=etat.etapes.append)
+        st.rerun()
+    if tolerance_suivante(res):              # masqué si déjà « Élevé » ou sous un scénario fictif
+        if st.button("Et si j'acceptais plus de risque ?", key=f"risque{index}",
+                     help="Scénario fictif : même demande, tolérance au niveau suivant. Cette réponse reste intacte."):
+            etat.risque_attente = index
             st.rerun()
-        options = options_et_si(res)         # boutons masqués quand ils seraient sans effet (config/scenarios.yaml)
-        if options:
-            st.markdown("**Et si… ?** — scénario fictif : une seule hypothèse change, cette réponse reste intacte.")
-            for col, o in zip(st.columns(len(options)), options):
-                if col.button(o["bouton"], key=f"etsi{index}{o['parametre']}", help=o["effet"]):
-                    etat.et_si_attente = {"index": index, "parametre": o["parametre"], "valeur": o["valeur"],
-                                          "bouton": o["bouton"]}
-                    st.rerun()
     with st.expander(f"Voir les {len(res['journal'].traces)} traces (journal d'audit)"):
         for t in res["journal"].traces:
             st.markdown(f"**{t['id']} · {t['titre']}** — _{t['agent']}_  \n`{t['outil']}`  \nEntrées : {t['entrees']}  \n"
@@ -280,25 +269,21 @@ def ecran_analyse():
         etat.etapes.append(e)
         afficher_etape(e, zone_agents)
 
-    demande_et_si = etat.get("et_si_attente")
-    if demande_et_si:                           # bouton « Et si » cliqué : relance sur une COPIE du mandat d'origine
-        del etat["et_si_attente"]
-        origine = etat.messages[demande_et_si["index"]]["res"]
-        etat.messages.append({"role": "user", "texte": f"🔀 {demande_et_si['bouton']}"})
+    if etat.get("risque_attente") is not None:  # bouton « Et si j'acceptais plus de risque ? » cliqué
+        origine = etat.messages[etat.risque_attente]["res"]
+        del etat["risque_attente"]
+        texte = "🔀 Et si j'acceptais plus de risque ?"
+        etat.messages.append({"role": "user", "texte": texte})
         etat.etapes = []
         with fil:
             with st.chat_message("user"):
-                st.markdown(f"🔀 {demande_et_si['bouton']}")
+                st.markdown(texte)
             attente = st.empty()
             attente.info("Je relance l'analyse avec cette hypothèse… (30 à 60 s sur Bedrock). "
-                         "Suis les agents à droite ; la réponse d'origine reste intacte.", icon="⏳")
-        try:
-            nouveau = et_si(origine, demande_et_si["parametre"], demande_et_si["valeur"], on_etape=en_direct)
-            etat.messages.append({"role": "assistant", "res": nouveau})
-        except ValueError as erreur:            # hors liste blanche : refus honnête, rien n'est inventé
-            etat.messages.append({"role": "assistant", "res": {"arret": True, "etapes": [
-                {"agent": "Orchestrateur", "statut": "warn", "texte": f"« Et si » impossible : {erreur}"}]}})
+                         "La réponse d'origine reste intacte.", icon="⏳")
+        res = plus_de_risque(origine, on_etape=en_direct)
         attente.empty()
+        etat.messages.append({"role": "assistant", "res": res})
         st.rerun()
 
     if question:
