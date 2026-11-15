@@ -46,6 +46,7 @@ etat.setdefault("messages", [])
 etat.setdefault("etapes", [])
 etat.setdefault("memoire", None)          # dernier actif / dernière part, pour les relances courtes
 etat.setdefault("demande_en_attente", None)   # demande incomplète (actif OU part) complétée au message suivant
+etat.setdefault("question_en_cours", None)    # question en cours d'analyse : reprise si un clic interrompt l'exécution
 
 def entete():
     """Marque + indicateur discret du mode (Bedrock ou démonstration hors ligne)."""
@@ -343,29 +344,31 @@ def ecran_analyse():
     for t in mandat["tensions"]:
         tete_g.warning(f"Tension dans le profil : {t}.", icon="⚠️")
     if tete_d.button("Changer de profil"):
-        etat.persona, etat.memoire, etat.demande_en_attente = None, None, None
+        etat.persona, etat.memoire, etat.demande_en_attente, etat.question_en_cours = None, None, None, None
         st.rerun()
     section_compte(mandat)
     st.markdown("<div id='analyse'></div><div class='af-section'>Analyse d'un placement</div>", unsafe_allow_html=True)
 
     gauche, droite = st.columns([1.15, 1], gap="large")
     with droite:
-        voir = st.toggle("Voir comment j'ai décidé", value=True, key="voir_coulisses")
-        if bedrock_client.actif():
-            st.caption(f"Agents sur Amazon Bedrock · Profil : {os.getenv('BEDROCK_MODELE_RAPIDE', '?')} · "
-                       f"Explicabilité : {os.getenv('BEDROCK_MODELE_REDACTION', '?')}")
-        else:
-            st.caption("Mode démonstration hors ligne : agents simulés, aucun appel AWS.")
-        zone_agents = st.container()
-        if voir:
-            for i, e in enumerate(etat.etapes):
-                etape_timeline(e, derniere=(i == len(etat.etapes) - 1), conteneur=zone_agents)
-            if not etat.etapes:
-                zone_agents.caption("Les agents apparaîtront ici, un par un : Guardrails → Profil → Analyste → "
-                                    "Gouvernance → Explicabilité → Vérificateur de fidélité.")
+        # st.expander se replie dans le navigateur, SANS relancer le script : instantané, même pendant une analyse,
+        # et il n'interrompt jamais l'exécution (contrairement à un interrupteur, qui relance tout).
+        coulisses = st.expander("Voir comment j'ai décidé", expanded=True, key="coulisses", icon=":material/account_tree:")
+        with coulisses:
+            if bedrock_client.actif():
+                st.caption(f"Agents sur Amazon Bedrock · Profil : {os.getenv('BEDROCK_MODELE_RAPIDE', '?')} · "
+                           f"Explicabilité : {os.getenv('BEDROCK_MODELE_REDACTION', '?')}")
+            else:
+                st.caption("Mode démonstration hors ligne : agents simulés, aucun appel AWS.")
+            zone_agents = st.container()
+        for i, e in enumerate(etat.etapes):
+            etape_timeline(e, derniere=(i == len(etat.etapes) - 1), conteneur=zone_agents)
+        if not etat.etapes:
+            zone_agents.caption("Les agents apparaîtront ici, un par un : Guardrails → Profil → Analyste → "
+                                "Gouvernance → Explicabilité → Vérificateur de fidélité.")
 
     with gauche:
-        fil = st.container(height=620)
+        fil = st.container(height=620, autoscroll=True)   # descend sur la question / réponse la plus récente
         with fil:
             if not etat.messages:
                 with st.chat_message("assistant"):
@@ -378,14 +381,22 @@ def ecran_analyse():
                     else:
                         afficher_reponse(m["res"], i)
         st.caption(f"Exemple : {p['message_exemple']}")
-        question = st.chat_input("Écris ta question…")
+        # submit_mode="disable" : pas de nouveau message tant que l'analyse en cours n'est pas terminée
+        question = st.chat_input("Écris ta question…", submit_mode="disable")
 
-    if question:
+    if question:                                # nouvelle question : mémorisée AVANT l'analyse
         etat.messages.append({"role": "user", "texte": question})
+        etat.question_en_cours = question
         etat.etapes = []
         with fil:
             with st.chat_message("user"):
                 st.markdown(question)
+    elif etat.question_en_cours:                # analyse interrompue par un clic : elle reprend automatiquement
+        question = etat.question_en_cours
+        etat.etapes = []
+
+    if question:
+        with fil:
             attente = st.empty()
             attente.info("Les agents analysent ta demande… suis leur travail à droite.")
 
@@ -395,8 +406,7 @@ def ecran_analyse():
             maintenant = time.perf_counter()
             e["duree"], chrono["t"] = maintenant - chrono["t"], maintenant
             etat.etapes.append(e)
-            if voir:
-                etape_timeline(e, conteneur=zone_agents)
+            etape_timeline(e, conteneur=zone_agents)
 
         res = executer(None if saisie else etat.persona, question, on_etape=en_direct, profil_saisi=saisie,
                        memoire=etat.memoire, en_attente=etat.demande_en_attente)
@@ -409,6 +419,7 @@ def ecran_analyse():
             etat.memoire = {"symbole": dem["symbole"], "lecture": lecture, "derniere_lecture": lecture or avant}
         attente.empty()
         etat.messages.append({"role": "assistant", "res": res})
+        etat.question_en_cours = None           # analyse terminée : plus rien à reprendre
         st.rerun()
 
 

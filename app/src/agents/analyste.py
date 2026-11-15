@@ -13,6 +13,7 @@ import threading
 from src import bedrock_client, config
 from src.formatage import money, nombre, pct
 from src.outils import calculs, client_lambda
+from src.verif import fidelite
 
 COMPLETE = " (complété par l'orchestrateur)"
 RE_PART = re.compile(r"PART\s*=\s*([-+]?\d+(?:[.,]\d+)?)", re.I)
@@ -232,6 +233,33 @@ def _extras(collecte: _Collecte, utilises: set) -> list[tuple[str, str, str]]:
     return out
 
 
+_LIGNE_PART = re.compile(r"^\s*PART\s*=.*$", re.M)
+_ID_TRACE = re.compile(r"\bT-\d+\b")
+
+
+def _note_verifiee(journal, texte: str, agent: str, consigne: str) -> str:
+    """Le commentaire du modèle n'est affiché que s'il passe les MÊMES contrôles que l'Explicabilité :
+    ligne technique PART= retirée ; chaque chiffre retrouvé dans les traces (ou la consigne) ; aucun conseil.
+    Sinon il est masqué, avec la raison. Les chiffres du tableau viennent toujours des outils."""
+    note = _LIGNE_PART.sub("", texte or "").strip()
+    if not note:
+        return ""
+    trouves, rejets = fidelite.chiffres_introuvables(journal, _ID_TRACE.sub(" ", note), consigne)
+    conseils = fidelite.formulations_de_conseil(note)
+    motifs = ([f"chiffre(s) introuvable(s) dans les traces : {', '.join(rejets)}"] if rejets else []) + \
+             ([f"formulation(s) de conseil : {', '.join(conseils)}"] if conseils else [])
+    journal.log(titre="Commentaire de l'Analyste · vérification", agent="Vérificateur (code, sans LLM)",
+                outil="chiffres_introuvables + formulations_de_conseil",
+                entrees=f"{len(trouves)} chiffre(s) dans le commentaire du modèle ({agent})",
+                sortie=(" · ".join(motifs) + " → commentaire masqué") if motifs
+                       else f"{len(trouves)}/{len(trouves)} chiffres retrouvés dans les traces · 0 formulation de conseil",
+                source="journal d'audit · config/garde_fous.yaml", periode="exécution courante")
+    if motifs:
+        return ("Commentaire du modèle masqué par le vérificateur (" + " ; ".join(motifs) + "). "
+                "Les résultats du tableau ci-dessus viennent des outils de calcul et font foi.")
+    return note
+
+
 def _mandat_texte(persona: dict) -> str:
     g = config.GABARITS[persona["risque"]]
     paris = "non vérifié" if g.get("paris_effectifs_min") is None else nombre(g["paris_effectifs_min"])
@@ -291,7 +319,7 @@ def analyser_demande(journal, persona: dict, symbole: str, part: float, gabarit:
     }
     utilises = {v["trace"] for v in d.values() if isinstance(v, dict) and "trace" in v}
     d["extras"] = _extras(collecte, utilises)
-    d["raisonnement"] = texte
+    d["raisonnement"] = _note_verifiee(journal, texte, agent, consigne)
     return d
 
 
@@ -342,5 +370,5 @@ def analyser_alternative(journal, persona: dict, symbole: str, part: float, tent
     }
     utilises = {a["mesures"]["trace"], a["rejeu"]["trace"]}
     a["extras"] = _extras(collecte, utilises)
-    a["raisonnement"] = texte
+    a["raisonnement"] = _note_verifiee(journal, texte, agent, texte_consigne)
     return a
