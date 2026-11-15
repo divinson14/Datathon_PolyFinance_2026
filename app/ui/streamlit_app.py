@@ -192,7 +192,7 @@ def _verdict(res) -> tuple[str, str, list, str | None]:
     elif verd["statut"] == gouvernance.CONFORME:
         statut, titre = "manquant", f"{w} en {s} ne viole aucune règle, mais une information manque : {manquantes}."
     elif verd["statut"] == gouvernance.CORRIGEABLE:
-        statut, titre = "a_revoir", f"{w} en {s} dépasse {n} limite(s) de ton profil."
+        statut, titre = "a_revoir", f"{w} en {s} dépasse le(s) limite(s) de ton profil."
     else:
         statut, titre = "bloque", (f"Aucune part de {s} n'est compatible avec ton profil." if b["base_conforme"]
                                    else "Le portefeuille actuel dépasse déjà une limite du profil.")
