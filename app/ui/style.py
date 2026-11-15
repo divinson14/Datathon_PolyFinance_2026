@@ -1,4 +1,4 @@
-"""Style AlphaForge : la feuille ui/style.css est injectée UNE fois, en un seul bloc <style>.
+"""Style InvestIA : la feuille ui/style.css est injectée UNE fois, en un seul bloc <style>.
 Le CSS est compact (aucune ligne vide, aucun commentaire) : une ligne vide dans un bloc HTML passé à st.markdown
 coupe le bloc, et le reste s'affichait en texte brut. Aucun logo ni couleur d'une vraie banque."""
 from pathlib import Path
