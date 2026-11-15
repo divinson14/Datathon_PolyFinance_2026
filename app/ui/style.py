@@ -37,6 +37,12 @@ h1 { font-size: 2.6rem !important; }
 .af-kpi .valeur { font-size:1.75rem; font-weight:300; color:%(texte)s; margin-top:6px; letter-spacing:-0.02em; }
 .af-kpi .detail { color:%(gris)s; font-size:.82rem; margin-top:4px; }
 
+/* Bouton principal « Ce placement me convient-il ? » (lien d'ancre vers le chat) */
+.af-cta { display:inline-block; background:%(accent)s; color:#FFFFFF !important; text-decoration:none !important;
+  border-radius:999px; padding:12px 26px; font-weight:500; font-size:1rem; margin:10px 0 6px 0; }
+.af-cta:hover { filter:brightness(1.08); }
+.af-section { font-size:1.35rem; font-weight:300; margin:26px 0 10px 0; color:%(texte)s; }
+
 /* Persona */
 .af-avatar { width:56px; height:56px; border-radius:50%%; background:#EAF1FE; color:%(accent)s;
   display:flex; align-items:center; justify-content:center; font-weight:600; font-size:1.2rem; margin-bottom:10px; }

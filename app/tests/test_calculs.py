@@ -87,3 +87,17 @@ def test_courbe_de_bascule_coherente_avec_le_point_de_bascule():
     assert all(b2 >= a - 1e-9 for a, b2 in zip(parts, parts[1:]))           # plus de poids → plus de risque
     if b["part_max"]:
         assert all(pt["conforme"] for pt in courbe if pt["part"] <= b["part_max"] + 1e-9)
+
+
+def test_valeur_historique_du_compte():
+    """Écran « Mon compte » : la courbe se termine à la valeur du compte et couvre la bonne durée."""
+    from src.config import PERSONAS
+    from src.outils.calculs import valeur_historique
+    p = PERSONAS["robert"]
+    longueurs = []
+    for annees in (1, 3, 5):
+        v = valeur_historique(p["portefeuille_suppose"], p["capital"], annees)
+        assert v.iloc[-1] == pytest.approx(p["capital"]) and (v > 0).all()
+        assert (v.index[-1] - v.index[0]).days <= 366 * annees + 7
+        longueurs.append(len(v))
+    assert longueurs[0] < longueurs[1] < longueurs[2]

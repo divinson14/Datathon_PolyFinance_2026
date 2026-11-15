@@ -70,6 +70,17 @@ def mesures(poids: dict) -> dict:
             "paris_effectifs": paris, "correlation_max": corr_max, "periode": _periode(r)}
 
 
+def valeur_historique(poids: dict, valeur_actuelle: float, annees: int) -> pd.Series:
+    """Valeur du portefeuille (poids constants, rééquilibré chaque semaine, en CAD) sur les `annees` dernières années,
+    ramenée pour se terminer à `valeur_actuelle` (la valeur du compte de démonstration aujourd'hui).
+    Pure, sans trace : sert à l'écran « Mon compte » ; ce chiffre n'est jamais cité dans une réponse vérifiée."""
+    w = pd.Series({s: float(v) for s, v in poids.items() if v > EPS})
+    r = rendements_hebdo()[list(w.index)].dropna()
+    r = r[r.index > r.index.max() - pd.DateOffset(years=int(annees))]
+    indice = pd.concat([pd.Series([1.0], index=[r.index.min() - pd.Timedelta(weeks=1)]), (1 + r @ w).cumprod()])
+    return indice / indice.iloc[-1] * float(valeur_actuelle)
+
+
 # ---------- Outils journalisés ----------
 
 def statistiques(journal, symbole: str, agent: str) -> dict:

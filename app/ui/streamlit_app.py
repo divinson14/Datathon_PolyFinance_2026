@@ -14,9 +14,11 @@ import streamlit as st
 
 from src import bedrock_client, config
 from src.agents import explicabilite, profil
-from src.donnees.chargeur import LIBELLE_DEMO, donnees_fictives
+from src.donnees.chargeur import LIBELLE_DEMO, charger, donnees_fictives
 from src.formatage import money, pct
 from src.orchestrateur import executer, reformuler
+from src.outils import calculs
+from src.regles.moteur import evaluer_regles
 from ui.composants import badge_etiquette, badge_trace, carte_kpi, carte_verdict, etape_timeline
 from ui.style import COULEURS, injecter_style
 
@@ -230,7 +232,70 @@ def afficher_reponse(res, index):
     st.caption(f"Données : {res['source_donnees']} · montants et rendements en dollars canadiens (CAD)")
 
 
-# ---------- Écran 2 : chat | coulisses ----------
+# ---------- Écran 2 : « Mon compte » (compte de démonstration du persona) ----------
+def _conformite_esg(p: dict, g: dict, univers, m: dict) -> tuple[str, str]:
+    """KPI ESG : évaluée par le moteur de règles existant sur le portefeuille actuel (aucun LLM)."""
+    if not p.get("exclusions_esg"):
+        return "Non applicable", "aucune exclusion ESG dans le profil"
+    regle = next(r for r in evaluer_regles(p["portefeuille_suppose"], m, g, univers, p) if r["regle"] == "Exclusions ESG")
+    if not regle["ok"]:
+        return "Controverse", regle["valeur"]
+    if regle.get("manquant"):
+        return "Information manquante", regle["valeur"]
+    return "Conforme", regle["valeur"]
+
+
+def section_compte(mandat: dict) -> None:
+    import plotly.graph_objects as go
+    p, g = mandat["profil"], mandat["gabarit"]
+    poids = p.get("portefeuille_suppose") or {}
+    st.markdown("<div class='af-bandeau'>Compte de démonstration · données fictives · simulation, "
+                "aucune transaction réelle</div>", unsafe_allow_html=True)
+    if not poids or not g:
+        st.info("Le compte de démonstration s'affichera dès que la tolérance au risque sera précisée.")
+        return
+    _, univers, _ = charger()
+    m = calculs.mesures(poids)                                   # outils existants : aucun chiffre du LLM
+    esg, esg_detail = _conformite_esg(p, g, univers, m)
+    k = st.columns(4, gap="medium")
+    carte_kpi("Valeur du compte", money(p["capital"]), "CAD · compte de démonstration", k[0])
+    carte_kpi("Profil de risque", g["label"], f"horizon {p['horizon']}", k[1])
+    carte_kpi("Volatilité annualisée", pct(m["vol"]), f"portefeuille actuel · limite du profil {pct(g['volatilite_max'])}", k[2])
+    carte_kpi("Conformité ESG", esg, esg_detail, k[3])
+
+    gauche, droite = st.columns([1, 1.25], gap="large")
+    noms = dict(zip(univers["symbole"].astype(str), univers["nom"].astype(str)))
+    lignes = pd.DataFrame([{"Actif": s, "Nom": noms.get(s, s), "Poids": w, "Valeur (CAD)": w * p["capital"]}
+                           for s, w in sorted(poids.items(), key=lambda kv: -kv[1])])
+    with gauche:
+        st.markdown("<div class='af-section'>Positions</div>", unsafe_allow_html=True)
+        st.dataframe(lignes, hide_index=True, width="stretch",
+                     column_config={"Poids": st.column_config.NumberColumn(format="percent"),
+                                    "Valeur (CAD)": st.column_config.NumberColumn(format="%,.0f $")})
+        anneau = go.Figure(go.Pie(labels=lignes["Actif"], values=lignes["Poids"], hole=0.62, sort=False,
+                                  textinfo="label+percent", textposition="outside"))
+        anneau.update_layout(height=290, margin=dict(t=10, b=10, l=10, r=10), showlegend=False,
+                             paper_bgcolor="rgba(0,0,0,0)", font=dict(family="Inter", color=COULEURS["texte"]))
+        st.plotly_chart(anneau, width="stretch", config={"displayModeBar": False})
+    with droite:
+        st.markdown("<div class='af-section'>Valeur du portefeuille</div>", unsafe_allow_html=True)
+        duree = st.segmented_control("Période", ["1A", "3A", "5A"], default="5A", key="periode_compte",
+                                     label_visibility="collapsed") or "5A"
+        v = calculs.valeur_historique(poids, p["capital"], int(duree[0]))
+        courbe = go.Figure(go.Scatter(x=v.index, y=v.values, mode="lines", line=dict(color=COULEURS["accent"], width=2),
+                                      fill="tozeroy", fillcolor="rgba(31,111,235,0.06)",
+                                      hovertemplate="%{x|%d %b %Y}<br>%{y:,.0f} $<extra></extra>"))
+        courbe.update_layout(height=360, margin=dict(t=10, b=10, l=10, r=10), paper_bgcolor="rgba(0,0,0,0)",
+                             plot_bgcolor="rgba(0,0,0,0)", font=dict(family="Inter", color=COULEURS["gris"]),
+                             yaxis=dict(range=[v.min() * 0.97, v.max() * 1.02], gridcolor="#EEEEEA", tickformat=",.0f"),
+                             xaxis=dict(showgrid=False))
+        st.plotly_chart(courbe, width="stretch", config={"displayModeBar": False})
+        st.caption(f"Positions actuelles conservées sur {duree[0]} an(s), rééquilibrées chaque semaine · prix en CAD · "
+                   "simulation à partir de l'historique, pas une performance réelle.")
+    st.markdown("<a class='af-cta' href='#analyse'>Ce placement me convient-il ?</a>", unsafe_allow_html=True)
+
+
+# ---------- Écran 3 : analyse (chat | coulisses) ----------
 def ecran_analyse():
     saisie = etat.profil_saisi if etat.persona == "personnalise" else None
     mandat = profil.construire_mandat(None if saisie else etat.persona, saisie)
@@ -238,12 +303,15 @@ def ecran_analyse():
     tete_g, tete_d = st.columns([4, 1])
     risque = mandat["gabarit"]["label"] if mandat["gabarit"] else "tolérance non précisée"
     age = f", {p['age']} ans" if p.get("age") else ""
-    tete_g.markdown(f"### {p['nom']}{age} · {risque} · {p['horizon']}")
+    tete_g.markdown(f"## Mon compte · {p['nom']}{age}")
+    tete_g.caption(f"{risque} · horizon {p['horizon']} · {p['objectif']}")
     for t in mandat["tensions"]:
         tete_g.warning(f"Tension dans le profil : {t}.", icon="⚠️")
     if tete_d.button("Changer de profil"):
         etat.persona, etat.memoire, etat.demande_en_attente = None, None, None
         st.rerun()
+    section_compte(mandat)
+    st.markdown("<div id='analyse'></div><div class='af-section'>Analyse d'un placement</div>", unsafe_allow_html=True)
 
     gauche, droite = st.columns([1.15, 1], gap="large")
     with droite:
