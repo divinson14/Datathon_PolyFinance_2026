@@ -1,15 +1,18 @@
 # AlphaForge AI
 **On ne vous dit pas quoi acheter. On vous montre où votre décision cesse d'être cohérente avec vous.**
 
-**Le problème.** Robert, 59 ans, profil prudent, veut mettre 30 % de son portefeuille dans Tesla. Il pense
-engager 30 % de ses dollars ; en réalité, il y placerait **89,5 % de son risque**. Les investisseurs raisonnent
-en dollars, alors que leur portefeuille réagit au risque. Personne ne leur montre l'écart, ni où il devient
-incohérent avec leur profil.
+**Le problème.** Prudent, équilibré ou audacieux, tout investisseur raisonne en **dollars** : « je mets 30 % de mon
+argent ici ». Or son portefeuille réagit au **risque**, et quelques lignes volatiles peuvent en porter l'essentiel.
+Un retraité prudent qui cède à un titre médiatisé, un profil audacieux qui croit que « risque élevé » veut dire
+« tout est permis », une personne attachée à l'ESG à qui l'on ne montre que le rendement : tous ont accès à l'information, mais
+personne ne leur montre **l'écart entre la part de leurs dollars et la part de leur risque**, ni le point où leur
+décision cesse d'être cohérente avec leur profil. Exemple : 30 % en Tesla dans un portefeuille prudent, c'est
+**89,5 % du risque**.
 
 **Notre réponse : le point de bascule.** Pour toute demande en langage courant (« je pense mettre 30 % dans
 Tesla »), AlphaForge calcule **la part maximale compatible avec le profil** et la règle qui casse en premier.
-Robert : **3 %**. Amira (profil élevé) : **13 %**. Mateo (modéré, ESG) : **6 %**. Même question, trois limites,
-et jamais « tout est permis » parce que le profil est audacieux.
+Même question pour trois profils de l'énoncé : prudent (Robert) **3 %**, équilibré avec ESG (Mateo) **6 %**,
+audacieux (Amira) **13 %**. Même moteur, trois limites, et jamais « tout est permis ».
 
 **L'approche agentique (le code juge, le LLM comprend et rédige, le code vérifie).**
 - **Agent Profil** (Claude Haiku) : construit le mandat ; ne déduit jamais la tolérance au risque ; signale ce qui manque.
