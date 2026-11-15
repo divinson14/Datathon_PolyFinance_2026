@@ -174,24 +174,26 @@ def main(sortie: str, donnees: dict):
 
     y5 = y4 - 70
     titre_section(c, "Données et AWS", M, y5 - 4)
-    para(c, "31 placements · 5 ans de prix réels (Yahoo Finance) · tout en dollars canadiens (Banque du Canada) · aucune "
-            "information « du futur ». <b>ESG : version partielle</b>, assumée (règle sectorielle + fonds ESG) : ce qui n'est pas "
-            "évalué est marqué « à vérifier ». Modèles : Claude Haiku 5.5 et Sonnet 5.5.",
+    y_txt = para(c, "31 placements · 5 ans de prix réels (Yahoo Finance) · tout en dollars canadiens (Banque du Canada) · aucune "
+            "information « du futur ». <b>ESG : version partielle</b>, assumée (règle sectorielle + fonds ESG). "
+            "<b>Modèles :</b> Claude Haiku 5.5 pour comprendre chaque message (rapide, ≈ 20× moins cher) ; Claude Sonnet 5.5 pour "
+            "rédiger sans déformer un seul chiffre.",
          M, y5 - 9, W - 2 * M, taille=7.4, couleur=GRIS)
     bx = M
     for svc in ["Amazon Bedrock · Claude", "Bedrock Guardrails", "AWS Lambda", "Amazon S3", "Amazon DynamoDB", "Strands Agents"]:
         tw = c.stringWidth(svc, "AB", 7) + 16
         c.setFillColor(colors.HexColor("#FFF4E5")); c.setStrokeColor(colors.HexColor("#F5C27A"))
-        c.roundRect(bx, y5 - 48, tw, 15, 7, 1, 1)
-        c.setFillColor(colors.HexColor("#8A4B00")); c.setFont("AB", 7); c.drawString(bx + 8, y5 - 43.5, svc)
+        c.roundRect(bx, y_txt - 18, tw, 14, 7, 1, 1)            # badges placés sous le texte, quelle que soit sa longueur
+        c.setFillColor(colors.HexColor("#8A4B00")); c.setFont("AB", 7); c.drawString(bx + 8, y_txt - 14, svc)
         bx += tw + 6
 
     # --- Explicabilité
-    y6 = y5 - 60
-    carte(c, M, y6 - 30, W - 2 * M, 30, fond=GRIS_C, bord=colors.HexColor("#E5E7EB"))
+    y6 = y_txt - 24
+    assert y6 - 28 > 46, "le flyer déborde sur le pied de page"
+    carte(c, M, y6 - 28, W - 2 * M, 28, fond=GRIS_C, bord=colors.HexColor("#E5E7EB"))
     para(c, "<b>Chaque réponse se justifie.</b> Un clic montre, pour chaque chiffre, le calcul, les données utilisées et "
             "leur source ; ces preuves sont enregistrées sur AWS (Amazon DynamoDB) et consultables après coup.",
-         M + 12, y6 - 7, W - 2 * M - 24, taille=7.6)
+         M + 12, y6 - 6, W - 2 * M - 24, taille=7.6)
 
     # --- Pied de page
     c.setFillColor(NUIT); c.rect(0, 0, W, 40, stroke=0, fill=1)
