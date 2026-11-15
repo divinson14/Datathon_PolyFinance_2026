@@ -159,3 +159,137 @@ def test_bedrock_client_ignore_les_blocs_non_texte(monkeypatch):
     monkeypatch.setenv("BEDROCK_MODELE_RAPIDE", "faux")
     monkeypatch.setattr(bedrock_client, "_bedrock", lambda: FauxClient())
     assert bedrock_client.appeler("x", modele="rapide") == '{"symbole": "TSLA"}'
+
+
+# ---------- Mémoire de conversation ----------
+
+def _conversation(messages, persona="robert"):
+    """Rejoue une conversation comme l'interface : la mémoire suit la dernière demande comprise."""
+    from src.orchestrateur import executer
+    memoire, resultats = None, []
+    for m in messages:
+        res = executer(persona, m, memoire=memoire)
+        dem = res.get("demande_extraite")
+        if dem is not None:
+            avant = (memoire or {}).get("derniere_lecture")
+            lecture = dem["lecture"] if dem["part"] is not None else None
+            memoire = {"symbole": dem["symbole"], "lecture": lecture, "derniere_lecture": lecture or avant}
+        resultats.append(res)
+    return resultats
+
+
+def test_conversation_de_yoel_rejouee():
+    """Bombardier (hors univers) → NVIDIA sans part → « 10000$ » doit analyser NVIDIA à 5 %."""
+    r = _conversation(["je pense plutôt investir dans bombardier", "je pense plutôt investir dans nvidia", "10000$"])
+    assert r[0]["arret"] and r[1]["arret"]
+    assert "part du portefeuille" in r[1]["demande_extraite"]["informations_manquantes"]
+    assert not r[2]["arret"] and r[2]["symbole"] == "NVDA" and r[2]["demande"]["part"] == pytest.approx(0.05)
+    assert "actif NVDA" in r[2]["demande_extraite"]["reprises"]
+
+
+def test_relance_reprend_l_actif_et_change_la_part():
+    r = _conversation(["Je pense mettre 30 % dans Tesla.", "et à 5 % ?"])
+    assert r[1]["symbole"] == "TSLA" and r[1]["demande"]["part"] == pytest.approx(0.05)
+
+
+def test_relance_reprend_la_part_pour_un_autre_actif():
+    r = _conversation(["Je pense mettre 30 % dans Tesla.", "et NVIDIA ?"])
+    assert r[1]["symbole"] == "NVDA" and r[1]["demande"]["part"] == pytest.approx(0.30)
+    assert any("part" in x for x in r[1]["demande_extraite"]["reprises"])
+
+
+def test_nouvelle_phrase_ne_reprend_rien_en_silence():
+    """Une phrase complète vers un actif inconnu ne doit JAMAIS être comprise comme l'actif précédent."""
+    r = _conversation(["Je pense mettre 30 % dans Tesla.", "je pense plutôt investir 10 % dans bombardier"])
+    assert r[1]["arret"] and r[1]["demande_extraite"]["symbole"] is None
+
+
+def test_sans_memoire_une_part_seule_demande_l_actif():
+    r = _conversation(["5 %"])
+    assert r[0]["arret"] and "actif" in r[0]["demande_extraite"]["informations_manquantes"]
+
+
+def test_reprise_tracee():
+    from src.orchestrateur import executer
+    from src.traces.journal import Journal
+    memoire = {"symbole": "TSLA", "lecture": None}
+    res = executer("robert", "5 %", memoire=memoire)
+    t = res["journal"].trouver(res["demande_extraite"]["trace"])
+    assert "repris de l'échange précédent : actif TSLA" in t["sortie"]
+
+
+def test_message_actif_inconnu_lisible():
+    r = ext("Je veux mettre 20 % dans Bombardier.")
+    assert "actions canadiennes (RY" in r["question"] and "RY.TO" not in r["question"]
+
+
+def test_comparaison_reprend_la_part_meme_avec_une_phrase():
+    r = _conversation(["Je pense mettre 30 % dans Tesla.", "et qu'en est-il pour nvidia ?"])
+    assert r[1]["symbole"] == "NVDA" and r[1]["demande"]["part"] == pytest.approx(0.30)
+
+
+def test_comparaison_ne_reprend_jamais_un_actif():
+    r = _conversation(["Je pense mettre 30 % dans Tesla.", "et pour Bombardier, qu'en est-il ?"])
+    assert r[1]["arret"] and r[1]["demande_extraite"]["symbole"] is None
+
+
+def test_nombre_nu_demande_l_unite():
+    r = _conversation(["je veux investir dans nvidia", "100"])
+    q = r[1]["demande_extraite"]["question"]
+    assert r[1]["arret"] and "100 % ou 100 $" in q and "NVDA" in q
+
+
+def test_demande_en_attente_conservee():
+    """« je t'ai demandé au début » : on redemande la part pour NVDA au lieu de « actif non reconnu »."""
+    r = _conversation(["je veux investir dans nvidia", "je t'ai demandé au début"])
+    dem = r[1]["demande_extraite"]
+    assert dem["symbole"] == "NVDA" and "part du portefeuille" in dem["informations_manquantes"]
+    assert "NVDA" in dem["question"] and "ne reconnais pas" not in dem["question"]
+
+
+def test_conversation_complete_de_yoel():
+    r = _conversation(["je veux investir dans nvidia", "100", "100$", "Tout le monde parle de Tesla, je pense mettre 30 % dedans.",
+                       "et qu'en est-il pour nvidia ?"])
+    assert r[1]["arret"] and not r[2]["arret"] and r[2]["symbole"] == "NVDA"
+    assert r[3]["symbole"] == "TSLA" and r[4]["symbole"] == "NVDA" and r[4]["demande"]["part"] == pytest.approx(0.30)
+
+
+def test_comparaison_tolere_les_fautes():
+    r = _conversation(["Je pense mettre 30 % dans Tesla.", "et qu'en est til pour nvidia?"])
+    assert r[1]["symbole"] == "NVDA" and r[1]["demande"]["part"] == pytest.approx(0.30)
+
+
+def test_reference_a_une_part_deja_donnee():
+    """Tesla 30 % → « et pour NVIDIA ? » sans part → « ce que je t'ai demandé au début » : 30 % repris ET affiché."""
+    r = _conversation(["Je pense mettre 30 % dans Tesla.", "je veux investir dans nvidia",
+                       "ce que je t'ai demandé au début"])
+    assert r[1]["arret"]
+    assert not r[2]["arret"] and r[2]["symbole"] == "NVDA" and r[2]["demande"]["part"] == pytest.approx(0.30)
+    assert any("dernière part indiquée" in x for x in r[2]["demande_extraite"]["reprises"])
+
+
+def test_reference_sans_part_connue_redemande():
+    r = _conversation(["je veux investir dans nvidia", "ce que je t'ai demandé au début"])
+    assert r[1]["arret"] and "NVDA" in r[1]["demande_extraite"]["question"]
+
+
+# ---------- Règle 4 : ni actif ni part → jamais d'analyse ----------
+
+def test_bonjour_ne_relance_jamais_une_analyse():
+    r = _conversation(["Je pense mettre 30 % dans Tesla.", "qu'en est til de nvdia?" , "bonjour"])
+    assert r[2]["arret"] and "Je suis un outil de simulation" in r[2]["demande_extraite"]["question"]
+
+
+def test_bonjour_sans_historique():
+    r = _conversation(["bonjour"])
+    assert r[0]["arret"] and "Par exemple" in r[0]["demande_extraite"]["question"]
+
+
+def test_part_seule_reprend_le_dernier_actif():
+    r = _conversation(["Je pense mettre 30 % dans Tesla.", "5 %"])
+    assert r[1]["symbole"] == "TSLA" and r[1]["demande"]["part"] == pytest.approx(0.05)
+
+
+def test_actif_seul_sans_comparaison_demande_la_part():
+    r = _conversation(["Je pense mettre 30 % dans Tesla.", "je pense à nvidia"])
+    assert r[1]["arret"] and "part du portefeuille" in r[1]["demande_extraite"]["informations_manquantes"]
