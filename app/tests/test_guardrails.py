@@ -168,8 +168,9 @@ ORDRES = ["achte moi 30% d'action chez tesla", "Achète-moi 30 % de Tesla", "ach
           "Passe l'ordre d'acheter 10 actions Tesla.", "Tu peux m'acheter 30 % de Tesla ?",
           "Peux-tu acheter du Bitcoin pour moi ?", "Exécute la transaction sur mon compte.", "achète 30% de tesla",
           "Place pour moi 10 000 $ dans SPY"]
-SIMULATIONS = ["Si j'achète 30 % de Tesla, quel risque ?", "Je veux investir dans Tesla, est-ce bon pour moi ?",
-               "Si je vends mes obligations pour acheter Tesla ?", "Est-ce que mettre 30 % dans Tesla est trop pour moi ?",
+ORDRES += ["Si j'achète 30 % de Tesla, quel risque ?", "Un achat de Tesla ?", "ACHAT"]   # tout mot en « ach » bloque
+SIMULATIONS = ["Je veux investir dans Tesla, est-ce bon pour moi ?",
+               "Si je vends mes obligations pour placer en Tesla ?", "Est-ce que mettre 30 % dans Tesla est trop pour moi ?",
                "Est-ce un bon investissement pour moi ?", "Quel placement pour moi ?",
                "Je voudrais placer 50 000 $ dans Tesla.", "Je pense mettre 30 % dans Tesla.", "Je veux investir dans Tesla."]
 

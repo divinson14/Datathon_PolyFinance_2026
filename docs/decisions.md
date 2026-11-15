@@ -150,7 +150,8 @@ Sortie : `data/processed/esg_drapeaux.csv` (via `02_construire_esg.py`). Sources
   → **détection en entrée, blocage en sortie** ; les ordres réels restent bloqués par une règle en code
   (regex de l'Agent Profil). Mesure : `python tests/verifier_guardrail.py` (rapide) ou `--complet` (14 scénarios).
 - **Règle en code des ordres réels** (`profil.MOTS_TRANSACTION`) : un ordre = l'utilisateur demande à l'assistant d'AGIR.
-  Motifs : verbe d'achat / vente suivi de « moi » ou « pour moi » (fautes tolérées : « achte moi », « achete ») ; impératif
+  Motifs : **tout mot commençant par « ach »** (achète, achte, achat… — choix de l'équipe, au prix de bloquer aussi
+  « si j'achète… ») ; verbe d'achat / vente suivi de « moi » ou « pour moi » (fautes tolérées : « achte moi », « achete ») ; impératif
   en début de phrase (« Achetez… », « Vends… ») ; demande directe (« tu peux m'acheter… ») ; « passer un ordre » ;
   « exécute la transaction ». Une hypothèse (« si j'achète… », « je pense mettre… », « bon investissement pour moi ? »)
   n'est PAS un ordre. Correction du 2026-11-15 : « achte moi 30% d'action chez tesla » passait (faute de frappe),

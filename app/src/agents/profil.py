@@ -24,6 +24,7 @@ from src.formatage import money, nombre, pct
 _ACHAT_VENTE = (r"(?:ach[eèé]?t(?:e|es|ez|er)?|vend(?:s|ez|re)?|plac(?:e|es|ez|er)|investi(?:s|ssez|r)"
                 r"|met[sz]?|mettez|prends|prenez)")                  # formes VERBALES seulement (pas « placement »)
 MOTS_TRANSACTION = re.compile("|".join([
+    r"\bach\w*",                                                                     # tout mot qui commence par « ach » (choix de l'équipe)
     rf"\b{_ACHAT_VENTE}[\s-]+(?:pour\s+)?moi\b",                                     # « achète-moi », « achte moi », « mets-moi »
     r"\bach[eèé]?te-(?:le|la|les)\b",                                                # « achète-le pour moi »
     r"(?:^|[.!?;:]\s*)(?:ach[eèé]?te[sz]?|vend[sz]?|vendez|ex[ée]cute[sz]?)\b",       # impératif en début de phrase
