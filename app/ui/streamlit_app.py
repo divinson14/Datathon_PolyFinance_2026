@@ -47,8 +47,6 @@ etat.setdefault("etapes", [])
 etat.setdefault("memoire", None)          # dernier actif / dernière part, pour les relances courtes
 etat.setdefault("demande_en_attente", None)   # demande incomplète (actif OU part) complétée au message suivant
 etat.setdefault("question_en_cours", None)    # question en cours d'analyse : reprise si un clic interrompt l'exécution
-etat.setdefault("voir_coulisses", True)       # état de l'interrupteur « Voir comment j'ai décidé »
-etat.setdefault("_voir_affiche", True)        # valeur utilisée par le dernier affichage complet
 
 def entete():
     """Marque + indicateur discret du mode (Bedrock ou démonstration hors ligne)."""
@@ -334,16 +332,6 @@ def section_compte(mandat: dict) -> None:
 
 
 # ---------- Écran 3 : analyse (chat | coulisses) ----------
-@st.fragment
-def interrupteur_coulisses():
-    """Dans un fragment : cliqué PENDANT une analyse, il attend qu'elle se termine au lieu de l'interrompre
-    (un widget du script principal relancerait tout et couperait l'analyse en cours)."""
-    st.toggle("Voir comment j'ai décidé", key="voir_coulisses")
-    if etat.voir_coulisses != etat._voir_affiche:     # changement fait à l'arrêt : on redessine toute la page
-        etat._voir_affiche = etat.voir_coulisses
-        st.rerun()
-
-
 def ecran_analyse():
     saisie = etat.profil_saisi if etat.persona == "personnalise" else None
     mandat = profil.construire_mandat(None if saisie else etat.persona, saisie)
@@ -363,23 +351,24 @@ def ecran_analyse():
 
     gauche, droite = st.columns([1.15, 1], gap="large")
     with droite:
-        interrupteur_coulisses()
-        voir = etat._voir_affiche = etat.voir_coulisses
-        if bedrock_client.actif():
-            st.caption(f"Agents sur Amazon Bedrock · Profil : {os.getenv('BEDROCK_MODELE_RAPIDE', '?')} · "
-                       f"Explicabilité : {os.getenv('BEDROCK_MODELE_REDACTION', '?')}")
-        else:
-            st.caption("Mode démonstration hors ligne : agents simulés, aucun appel AWS.")
-        zone_agents = st.container()
-        if voir:
-            for i, e in enumerate(etat.etapes):
-                etape_timeline(e, derniere=(i == len(etat.etapes) - 1), conteneur=zone_agents)
-            if not etat.etapes:
-                zone_agents.caption("Les agents apparaîtront ici, un par un : Guardrails → Profil → Analyste → "
-                                    "Gouvernance → Explicabilité → Vérificateur de fidélité.")
+        # st.expander se replie dans le navigateur, SANS relancer le script : instantané, même pendant une analyse,
+        # et il n'interrompt jamais l'exécution (contrairement à un interrupteur, qui relance tout).
+        coulisses = st.expander("Voir comment j'ai décidé", expanded=True, key="coulisses", icon=":material/account_tree:")
+        with coulisses:
+            if bedrock_client.actif():
+                st.caption(f"Agents sur Amazon Bedrock · Profil : {os.getenv('BEDROCK_MODELE_RAPIDE', '?')} · "
+                           f"Explicabilité : {os.getenv('BEDROCK_MODELE_REDACTION', '?')}")
+            else:
+                st.caption("Mode démonstration hors ligne : agents simulés, aucun appel AWS.")
+            zone_agents = st.container()
+        for i, e in enumerate(etat.etapes):
+            etape_timeline(e, derniere=(i == len(etat.etapes) - 1), conteneur=zone_agents)
+        if not etat.etapes:
+            zone_agents.caption("Les agents apparaîtront ici, un par un : Guardrails → Profil → Analyste → "
+                                "Gouvernance → Explicabilité → Vérificateur de fidélité.")
 
     with gauche:
-        fil = st.container(height=620)
+        fil = st.container(height=620, autoscroll=True)   # descend sur la question / réponse la plus récente
         with fil:
             if not etat.messages:
                 with st.chat_message("assistant"):
@@ -417,8 +406,7 @@ def ecran_analyse():
             maintenant = time.perf_counter()
             e["duree"], chrono["t"] = maintenant - chrono["t"], maintenant
             etat.etapes.append(e)
-            if voir:
-                etape_timeline(e, conteneur=zone_agents)
+            etape_timeline(e, conteneur=zone_agents)
 
         res = executer(None if saisie else etat.persona, question, on_etape=en_direct, profil_saisi=saisie,
                        memoire=etat.memoire, en_attente=etat.demande_en_attente)
