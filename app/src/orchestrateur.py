@@ -8,12 +8,13 @@ from src.traces.journal import Journal
 from src.verif import fidelite, guardrails
 
 
-def executer(persona_id: str | None, message: str, style: str | None = None, on_etape=None,
+def executer(persona_id: str | None, message: str, style: str | None = None, on_etape=None, memoire: dict | None = None,
              profil_saisi: dict | None = None) -> dict:
     """persona_id = persona de référence ; OU profil_saisi = 5 champs (age, tolerance, horizon_ans, objectif, esg[, capital])."""
     prix, univers, source = charger()
     journal = Journal()
     etapes = []
+    dem = None
     mandat = profil.construire_mandat(persona_id, profil_saisi, journal)
     persona, gabarit = mandat["profil"], mandat["gabarit"]
     style = style or ("avance" if persona["niveau_experience"] == "avance" else "inter")
@@ -25,7 +26,8 @@ def executer(persona_id: str | None, message: str, style: str | None = None, on_
             on_etape(e)
 
     def arret():
-        return {"arret": True, "etapes": etapes, "journal": journal, "persona": persona, "mandat": mandat}
+        return {"arret": True, "etapes": etapes, "journal": journal, "persona": persona, "mandat": mandat,
+                "demande_extraite": dem}
 
     # 1. Garde-fous d'ENTRÉE : regex locale (rapide, sans AWS) PUIS Bedrock Guardrails (MODE=bedrock + guardrail configuré).
     #    Guardrails est consulté même si la regex bloque déjà : la trace montre le verdict des deux.
@@ -56,7 +58,7 @@ def executer(persona_id: str | None, message: str, style: str | None = None, on_
         etape("Agent Profil", "warn", mandat["question"], trace=mandat["trace"],
               note="Information manquante : " + ", ".join(mandat["informations_manquantes"]) + ". Le système ne la devine pas.")
         return arret()
-    dem = profil.extraire(message, persona, univers, journal)
+    dem = profil.extraire(message, persona, univers, journal, memoire)
     mandat["demande"] = {k: dem[k] for k in ("symbole", "part", "symboles_mentionnes", "informations_manquantes", "methode", "trace")}
     if dem["informations_manquantes"]:
         etape("Agent Profil", "warn", dem["question"], trace=dem["trace"],
@@ -74,6 +76,7 @@ def executer(persona_id: str | None, message: str, style: str | None = None, on_
           trace=mandat["trace"], note=" ".join(remarques) or None,
           mandat=[("Actif demandé", symbole), ("Part demandée", pct(part) + (f" (= {dem['lecture']['extrait']})" if dem["lecture"]["type"] == "montant" else "")),
                   ("Lecture de la demande", dem["methode"]),
+                  *([("Repris de l'échange précédent", ", ".join(dem["reprises"]))] if dem.get("reprises") else []),
                   ("Gabarit appliqué", f"« {g['label']} » (config/)"),
                   ("Seuils (hypothèses de l'équipe)", seuils),
                   ("Profil", f"{mandat['source']} · horizon {persona['horizon']}"),
@@ -150,7 +153,8 @@ def executer(persona_id: str | None, message: str, style: str | None = None, on_
 
     return {"arret": False, "etapes": etapes, "journal": journal, "persona": persona, "gabarit": gabarit,
             "symbole": symbole, "demande": d, "alternative": alt, "verdicts": verd, "fiche": fiche,
-            "verif": verif, "contexte": contexte, "source_donnees": source, "mandat": mandat, "autorise": autorise}
+            "verif": verif, "contexte": contexte, "source_donnees": source, "mandat": mandat, "autorise": autorise,
+            "demande_extraite": dem}
 
 
 def rediger_verifie(contexte: dict, journal, style: str, autorise: str, etape):

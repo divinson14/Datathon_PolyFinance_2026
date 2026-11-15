@@ -217,6 +217,54 @@ def lire_part(texte: str, capital: float) -> dict | None:
     return None
 
 
+# ---------- Mémoire de conversation (code pur) ----------
+
+_GROUPES = [("actions canadiennes", lambda c, d: c == "equity" and d == "CAD"),
+            ("actions américaines", lambda c, d: c == "equity" and d != "CAD"),
+            ("FNB d'actions", lambda c, d: c == "etf_equity"), ("FNB obligataires", lambda c, d: c == "etf_bond"),
+            ("or", lambda c, d: c == "etf_commodity"), ("cryptoactifs", lambda c, d: c == "crypto")]
+
+
+def univers_lisible(univers) -> str:
+    """« actions canadiennes (RY, TD, …) · actions américaines (AAPL, …) · … » pour les messages à l'utilisateur."""
+    morceaux = []
+    for nom, test in _GROUPES:
+        sel = univers[[test(str(c), str(d)) for c, d in zip(univers["classe"], univers["devise"])]]
+        if len(sel):
+            courts = [re.sub(r"(\.TO|-USD)$", "", str(s)) for s in sel["symbole"]]
+            morceaux.append(f"{nom} ({', '.join(courts)})")
+    return " · ".join(morceaux)
+
+
+_NOMBRE_NU = re.compile(r"(?<![\w.,])\d+(?:[.,]\d+)?(?![\w.,%$])")
+_CIBLE = re.compile(r"\b(dans|sur|chez|pour)\s+[a-z]", re.I)
+
+
+def _sans_ponctuation(texte: str) -> str:
+    """Minuscules, sans accents, tirets ni apostrophes : « qu'en est-il », « qu en est til » → comparables."""
+    return " " + re.sub(r"\s+", " ", re.sub(r"[^a-z0-9]+", " ", _normaliser(texte))).strip() + " "
+
+
+def _contient(message: str, marqueurs: list[str]) -> bool:
+    norm = _sans_ponctuation(message)
+    return any(_sans_ponctuation(m) in norm for m in marqueurs)
+
+
+def est_comparaison(message: str) -> bool:
+    """« et NVIDIA ? », « qu'en est-il pour NVIDIA ? » (tolère « qu'en est til ») : comparaison avec la demande précédente."""
+    return _sans_ponctuation(message).startswith(" et ") or _contient(message, PROFIL["marqueurs_de_comparaison"])
+
+
+def renvoie_a_une_part_donnee(message: str) -> bool:
+    """« ce que je t'ai demandé au début », « comme avant » : l'utilisateur renvoie à une part déjà indiquée."""
+    return _contient(message, PROFIL["marqueurs_de_reprise_part"])
+
+
+def nouvelle_cible(message: str) -> bool:
+    """« … dans Bombardier » : le message vise un AUTRE actif (même inconnu) → ne jamais reprendre l'actif précédent."""
+    return bool(_CIBLE.search(_normaliser(message)))
+
+
 # ---------- Extraction ----------
 
 def _extraction_locale(message: str, univers, persona: dict) -> dict:
@@ -255,7 +303,7 @@ def _extraction_llm(message: str, univers, persona: dict) -> dict | None:
             "lecture": lecture, "methode": f"LLM Bedrock (actif) + contrôle par le code ({controle})"}
 
 
-def extraire(message: str, persona: dict, univers, journal=None) -> dict:
+def extraire(message: str, persona: dict, univers, journal=None, memoire: dict | None = None) -> dict:
     """Retourne {symbole, part, symboles_mentionnes, informations_manquantes, question, methode, trace, …}.
 
     `question` est le message à poser à l'utilisateur quand la demande est incomplète ou ambiguë :
@@ -277,18 +325,60 @@ def extraire(message: str, persona: dict, univers, journal=None) -> dict:
     part = lecture["part"] if lecture else None
     mentionnes = res["symboles_mentionnes"]
     symbole = res["symbole"]
+
+    # Mémoire minimale : elle COMPLÈTE une demande à moitié donnée, rien de plus. On raisonne sur le CONTENU
+    # du message (actif ? part ?), jamais sur sa longueur. Toute reprise est affichée et tracée.
+    #  1. actif + part      → nouvelle demande, mémoire ignorée ;
+    #  2. part seule        → actif de l'échange précédent (sauf si le message vise un autre actif : « … dans X ») ;
+    #  3. actif seul        → part précédente SEULEMENT si comparaison explicite (« et pour… », « qu'en est-il… »)
+    #                         ou renvoi à une part déjà donnée (« comme avant ») ;
+    #  4. ni actif ni part  → jamais d'analyse : actif inconnu (« … dans Bombardier »), demande en attente
+    #                         (reprise si « comme avant », sinon on redemande la part), ou message d'aide.
+    reprises, aide = [], None
+    memoire = memoire or {}
+    en_attente = bool(memoire.get("symbole")) and memoire.get("lecture") is None
+    precedente = memoire.get("lecture") or memoire.get("derniere_lecture")
+    if not mentionnes and lecture is not None:                                        # règle 2
+        if memoire.get("symbole") and not nouvelle_cible(message):                    # « 10 % dans Bombardier » : non
+            symbole, mentionnes = memoire["symbole"], [memoire["symbole"]]
+            reprises.append(f"actif {symbole}")
+    elif mentionnes and lecture is None:                                              # règle 3
+        if precedente and len(mentionnes) == 1 and (est_comparaison(message) or renvoie_a_une_part_donnee(message)):
+            lecture = precedente
+            reprises.append(f"part {pct(lecture['part'])} (dernière part indiquée : « {lecture['extrait']} »)")
+    elif not mentionnes and lecture is None and not nouvelle_cible(message):          # règle 4
+        if en_attente:
+            symbole, mentionnes = memoire["symbole"], [memoire["symbole"]]
+            reprises.append(f"actif {symbole} (demande en attente)")
+            if precedente and renvoie_a_une_part_donnee(message):
+                lecture = precedente
+                reprises.append(f"part {pct(lecture['part'])} (dernière part indiquée : « {lecture['extrait']} »)")
+        elif not _NOMBRE_NU.search(message):
+            aide = ("Je suis un outil de simulation : j'analyse une part d'un actif dans ton portefeuille, selon ton profil. "
+                    "Par exemple : « Je pense mettre 10 % dans Tesla » ou « Et 5 000 $ en NVIDIA ? ».")
+    part = lecture["part"] if lecture else None
+
     manquants, question = [], None
-    if len(mentionnes) > 1:
+    if aide:
+        manquants.append("demande")
+        question = aide
+    elif len(mentionnes) > 1:
         manquants.append("actif à analyser")
         question = (f"Ton message cite plusieurs actifs ({', '.join(mentionnes)}). J'analyse une demande à la fois : "
                     "lequel veux-tu ajouter à ton portefeuille, et pour quelle part ?")
     elif symbole is None:
         manquants.append("actif")
-        question = ("Je ne reconnais pas l'actif visé dans l'univers étudié. Actifs couverts : "
-                    + ", ".join(univers["symbole"].astype(str)) + ".")
-    if part is None:
+        question = (f"Je ne reconnais pas d'actif de l'univers étudié dans ta demande. Il couvre {len(univers)} actifs : "
+                    + univers_lisible(univers) + ".")
+    if aide:
+        pass
+    elif part is None:
         manquants.append("part du portefeuille")
-        question = question or ("Quelle part de ton portefeuille veux-tu y mettre (en % ou en $) ? "
+        cible = f"mettre en {symbole}" if symbole else "y mettre"
+        nombre_nu = _NOMBRE_NU.search(_MONTANT.sub(" ", _POURCENTAGE.sub(" ", message)))
+        precision = (f" Tu as écrit « {nombre_nu.group(0)} » : est-ce {nombre_nu.group(0)} % ou {nombre_nu.group(0)} $ ?"
+                     if nombre_nu else "")
+        question = question or (f"Quelle part de ton portefeuille veux-tu {cible} (en % ou en $) ?{precision} "
                                 "Je ne la devine pas à ta place.")
     elif not 0 < part <= 1:
         manquants.append("part valide")
@@ -297,7 +387,8 @@ def extraire(message: str, persona: dict, univers, journal=None) -> dict:
 
     res_final = {"symbole": symbole,
                  "part": part, "lecture": lecture, "symboles_mentionnes": mentionnes,
-                 "informations_manquantes": manquants, "question": question, "methode": res["methode"], "trace": None}
+                 "informations_manquantes": manquants, "question": question, "methode": res["methode"],
+                 "reprises": reprises, "trace": None}
     if journal is not None:
         res_final["trace"] = _tracer(journal, message, persona, res_final)
     return res_final
@@ -311,6 +402,8 @@ def _tracer(journal, message: str, persona: dict, r: dict) -> str:
         morceaux.append(f"part : {pct(r['part'])} = {money(lec['montant'])} / capital {money(persona['capital'])} (extrait « {lec['extrait']} »)")
     elif r["part"] is not None:
         morceaux.append(f"part : {pct(r['part'])} (extrait « {lec['extrait']} »)")
+    if r.get("reprises"):
+        morceaux.append("repris de l'échange précédent : " + ", ".join(r["reprises"]))
     if r["informations_manquantes"]:
         morceaux.append("manquant : " + ", ".join(r["informations_manquantes"]))
     extrait_msg = message if len(message) <= 240 else message[:237] + "…"

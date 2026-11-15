@@ -28,3 +28,15 @@ portefeuilles_types:
     libelle: "55 % FNB d'actions, 20 % titres (NVDA, SHOP, MSFT, JNJ), 10 % crypto, 10 % obligations, 5 % or"
     poids: {"XIU.TO": 0.15, "SPY": 0.20, "QQQ": 0.20, "XBB.TO": 0.10, "GLD": 0.05, "NVDA": 0.05, "SHOP.TO": 0.05,
             "MSFT": 0.05, "JNJ": 0.05, "BTC-USD": 0.05, "ETH-USD": 0.05}
+
+# Mémoire de conversation (4 règles, voir agents/profil.py) : elle complète une demande à moitié donnée.
+# Marqueurs de COMPARAISON : un message qui nomme un actif SANS part et contient l'un d'eux reprend la part
+# précédente (« et qu'en est-il pour NVIDIA ? »). Ils ne permettent jamais de reprendre un ACTIF.
+marqueurs_de_comparaison: ["et pour", "qu en est il", "qu en est til", "quen est il", "et avec", "meme chose", "pareil",
+                           "et si c etait", "a la place", "plutot que", "et du cote de", "et concernant", "et pour ce qui est"]
+# Références à une part DÉJÀ donnée (« ce que je t'ai demandé au début ») : la dernière part connue est reprise
+# ET affichée (« part reprise : 30 % »), pour que l'utilisateur puisse corriger. Comparaison sans accents,
+# tirets ni apostrophes.
+marqueurs_de_reprise_part: ["comme avant", "comme au debut", "comme tout a l heure", "meme part", "meme montant",
+                            "meme chose", "pareil", "ce que je t ai demande", "je t ai demande", "je t ai dit",
+                            "deja dit", "deja donne", "comme la derniere fois", "la meme"]
