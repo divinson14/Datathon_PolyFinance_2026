@@ -176,10 +176,10 @@ def main(sortie: str, donnees: dict):
     titre_section(c, "Données et AWS", M, y5 - 4)
     para(c, "31 placements · 5 ans de prix réels (Yahoo Finance) · tout en dollars canadiens (Banque du Canada) · aucune "
             "information « du futur ». <b>ESG : version partielle</b>, assumée (règle sectorielle + fonds ESG) : ce qui n'est pas "
-            "évalué est marqué « à vérifier ». Limites des profils : hypothèses de l'équipe, affichées.",
+            "évalué est marqué « à vérifier ». Modèles : Claude Haiku 5.5 et Sonnet 5.5.",
          M, y5 - 9, W - 2 * M, taille=7.4, couleur=GRIS)
     bx = M
-    for svc in ["Bedrock · Claude Haiku 5.5 + Sonnet 5.5", "Bedrock Guardrails", "AWS Lambda", "Amazon S3", "Amazon DynamoDB", "Strands Agents"]:
+    for svc in ["Amazon Bedrock · Claude", "Bedrock Guardrails", "AWS Lambda", "Amazon S3", "Amazon DynamoDB", "Strands Agents"]:
         tw = c.stringWidth(svc, "AB", 7) + 16
         c.setFillColor(colors.HexColor("#FFF4E5")); c.setStrokeColor(colors.HexColor("#F5C27A"))
         c.roundRect(bx, y5 - 48, tw, 15, 7, 1, 1)
@@ -198,8 +198,8 @@ def main(sortie: str, donnees: dict):
     c.setFillColor(colors.white); c.setFont("AB", 7.6)
     c.drawString(M, 25, "Et ensuite ?")
     c.setFont("A", 7.2); c.setFillColor(colors.HexColor("#C7D2FE"))
-    c.drawString(M + 50, 25, "Agent Auditeur qui relit le sens des réponses (à venir) · plusieurs placements par question · horizon qui ajuste les limites"
-                 " · mode conseiller.")
+    c.drawString(M + 50, 25, "Agent Auditeur (à venir) · plusieurs placements par question · horizon qui ajuste les limites · mode conseiller."
+                 "  La suite, construisons-la ensemble.")
     c.setFont("A", 5.8); c.setFillColor(colors.HexColor("#9CA3AF"))
     c.drawString(M, 11, "Simulation éducative sur des profils fictifs : aucune transaction réelle, aucun conseil financier personnalisé. "
                  "Les performances passées ne prédisent pas les résultats futurs.")
