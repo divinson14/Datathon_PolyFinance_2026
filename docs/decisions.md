@@ -144,6 +144,11 @@ Sortie : `data/processed/esg_drapeaux.csv` (via `02_construire_esg.py`). Sources
 - **Entrée** (début de l'orchestrateur) : regex locale (rapide, sans AWS), PUIS ApplyGuardrail `source=INPUT`
   si MODE=bedrock et `BEDROCK_GUARDRAIL_ID` défini. Guardrails est consulté même si la regex bloque déjà :
   la trace montre les deux verdicts. Intervention → arrêt « Demande bloquée par Bedrock Guardrails : … ».
+  Une politique en mode « Detect » (action NONE, `detected: true`) est affichée dans la trace et l'étape
+  (« détecté par Bedrock Guardrails : Transaction-reelle ») sans bloquer.
+- **Les sujets refusés bloquaient des simulations légitimes à l'entrée** (faux positifs mesurés : 8/13, puis 5, puis 3)
+  → **détection en entrée, blocage en sortie** ; les ordres réels restent bloqués par une règle en code
+  (regex de l'Agent Profil). Mesure : `python tests/verifier_guardrail.py` (rapide) ou `--complet` (14 scénarios).
 - **Sortie** (fin de `rediger_verifie`, donc aussi pour les reformulations) : ApplyGuardrail `source=OUTPUT` sur le
   texte réellement affiché. Intervention → message de remplacement sûr (aucun chiffre, aucun conseil) + trace.
 - **Traces** « Bedrock Guardrails · demande / réponse » : action (NONE / GUARDRAIL_INTERVENED), politiques
@@ -155,18 +160,13 @@ Sortie : `data/processed/esg_drapeaux.csv` (via `02_construire_esg.py`). Sources
   (« aucun conseil personnalisé »…) qu'un sujet refusé bloquerait à tort. Guardrails contrôle ce que l'utilisateur
   écrit et ce qu'il lit.
 - Version vide dans .env → `DRAFT`.
-- **Politiques configurées** (console Bedrock > Guardrails) — *à compléter par l'équipe* :
+- **Politiques configurées** (guardrail `7xq7ledpn2cm`, console Bedrock > Guardrails) :
 
-  | Politique | Configuration | Pourquoi |
-  |---|---|---|
-  | Sujets refusés | *à compléter* | |
-  | Filtres de contenu | *à compléter* | |
-  | Mots interdits | *à compléter* | |
-  | Informations sensibles | *à compléter* | |
-  | Message de blocage | *à compléter* | |
-
-- Validation prévue en MODE=bedrock : les 14 scénarios de tests/scenarios_pieges.yaml sans faux positif (aucune analyse
-  légitime bloquée) et « Achète-le pour moi » bloqué par Bedrock (pas seulement par la regex).
+  | Politique | Entrée (demande) | Sortie (réponse affichée) | Pourquoi |
+  |---|---|---|---|
+  | Sujet refusé « Transaction-reelle » | Detect | Block | Aucun ordre réel ; en entrée, la règle en code bloque (le sujet attrapait des simulations) |
+  | Sujet refusé « Promesse-de-rendement » | Detect | Block | Aucune promesse de rendement dans une réponse ; en entrée, « tout le monde parle de Tesla » était bloqué |
+  | Filtres de contenu, mots interdits, informations sensibles, message de blocage | *à compléter par l'équipe* | | |
 
 ## Services AWS
 | Service | Pourquoi |

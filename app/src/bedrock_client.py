@@ -89,39 +89,50 @@ def guardrail_actif() -> bool:
     return actif() and config_guardrail() is not None
 
 
-def politiques_declenchees(assessments: list) -> list[str]:
-    """Politiques déclenchées, lues dans les `assessments` d'ApplyGuardrail (action ≠ NONE). Code pur."""
-    trouvees = []
+def _evaluations(assessments: list) -> list[tuple[str, str, bool]]:
+    """(libellé, action, détecté) de chaque élément de politique des `assessments` d'ApplyGuardrail. Code pur.
+    Mode « Block » : action ≠ NONE. Mode « Detect » (aucun blocage) : action = NONE et detected = true."""
+    vus = []
     for a in assessments or []:
-        for t in (a.get("topicPolicy") or {}).get("topics", []):
-            if t.get("action", "NONE") != "NONE":
-                trouvees.append(f"sujet refusé « {t.get('name')} »")
-        for f in (a.get("contentPolicy") or {}).get("filters", []):
-            if f.get("action", "NONE") != "NONE":
-                trouvees.append(f"filtre de contenu {f.get('type')} (confiance {f.get('confidence')})")
+        sujets = (a.get("topicPolicy") or {}).get("topics", [])
+        vus += [(f"sujet refusé « {t.get('name')} »", t.get("action", "NONE"), t.get("detected", False)) for t in sujets]
+        filtres = (a.get("contentPolicy") or {}).get("filters", [])
+        vus += [(f"filtre de contenu {f.get('type')} (confiance {f.get('confidence')})", f.get("action", "NONE"),
+                 f.get("detected", False)) for f in filtres]
         mots = a.get("wordPolicy") or {}
-        for w in mots.get("customWords", []) + mots.get("managedWordLists", []):
-            if w.get("action", "NONE") != "NONE":
-                trouvees.append(f"mot interdit « {w.get('match')} »")
+        vus += [(f"mot interdit « {w.get('match')} »", w.get("action", "NONE"), w.get("detected", False))
+                for w in mots.get("customWords", []) + mots.get("managedWordLists", [])]
         sensible = a.get("sensitiveInformationPolicy") or {}
-        for p in sensible.get("piiEntities", []):
-            if p.get("action", "NONE") != "NONE":
-                trouvees.append(f"information personnelle {p.get('type')} ({p.get('action')})")
-        for r in sensible.get("regexes", []):
-            if r.get("action", "NONE") != "NONE":
-                trouvees.append(f"motif sensible « {r.get('name')} » ({r.get('action')})")
-        for g in (a.get("contextualGroundingPolicy") or {}).get("filters", []):
-            if g.get("action", "NONE") != "NONE":
-                trouvees.append(f"ancrage contextuel {g.get('type')}")
-    return list(dict.fromkeys(trouvees))           # sans doublons, ordre conservé
+        vus += [(f"information personnelle {p.get('type')}", p.get("action", "NONE"), p.get("detected", False))
+                for p in sensible.get("piiEntities", [])]
+        vus += [(f"motif sensible « {r.get('name')} »", r.get("action", "NONE"), r.get("detected", False))
+                for r in sensible.get("regexes", [])]
+        vus += [(f"ancrage contextuel {g.get('type')}", g.get("action", "NONE"), g.get("detected", False))
+                for g in (a.get("contextualGroundingPolicy") or {}).get("filters", [])]
+    return vus
+
+
+def politiques_declenchees(assessments: list) -> list[str]:
+    """Politiques qui ont AGI (action ≠ NONE : BLOCKED, ANONYMIZED…). Sans doublons, ordre conservé."""
+    return list(dict.fromkeys(lib + (f" ({act})" if act not in ("BLOCKED", "NONE") else "")
+                              for lib, act, _ in _evaluations(assessments) if act != "NONE"))
+
+
+def detections_sans_blocage(assessments: list) -> list[str]:
+    """Politiques en mode « Detect » qui ont DÉTECTÉ le texte sans agir (action = NONE, detected = true)."""
+    return list(dict.fromkeys(lib.removeprefix("sujet refusé ").strip("« »") if lib.startswith("sujet refusé") else lib
+                              for lib, act, detecte in _evaluations(assessments) if act == "NONE" and detecte))
 
 
 def appliquer_guardrail(texte: str, source: str) -> dict:
     """ApplyGuardrail sur un texte (source = INPUT pour la demande, OUTPUT pour la réponse affichée).
-    Renvoie {action, politiques, id, version, latence_ms}. Lève l'erreur AWS telle quelle (gérée par l'appelant)."""
+    Renvoie {action, politiques (qui ont agi), detections (mode Detect, sans blocage), id, version, latence_ms}.
+    Lève l'erreur AWS telle quelle (gérée par l'appelant)."""
     gid, version = config_guardrail()
     debut = time.perf_counter()
     rep = _bedrock().apply_guardrail(guardrailIdentifier=gid, guardrailVersion=version, source=source,
                                      content=[{"text": {"text": texte}}])
-    return {"action": rep.get("action", "NONE"), "politiques": politiques_declenchees(rep.get("assessments")),
+    assessments = rep.get("assessments")
+    return {"action": rep.get("action", "NONE"), "politiques": politiques_declenchees(assessments),
+            "detections": detections_sans_blocage(assessments),
             "id": gid, "version": version, "latence_ms": round((time.perf_counter() - debut) * 1000)}

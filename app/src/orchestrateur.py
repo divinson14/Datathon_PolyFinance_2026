@@ -37,15 +37,19 @@ def executer(persona_id: str | None, message: str, style: str | None = None, on_
               "Aucune transaction réelle ni conseil personnalisé : reformule ta question pour une analyse en simulation.",
               trace=g["trace"], note="Garde-fou local : " + ("a aussi bloqué la demande." if local else "rien détecté."))
         return arret()
-    if local:
-        etape(agent_gf, "fail", "Demande bloquée : aucune transaction réelle n'est possible. "
+    detecte = guardrails.libelle_detections(g["detections"]) if g["detections"] else None
+    if local:                                   # le blocage d'entrée des ordres réels reste la règle en code
+        etape("Garde-fou local", "fail", "Demande bloquée : aucune transaction réelle n'est possible. "
               "Reformule ta question pour une analyse en simulation.", trace=g["trace"],
-              note=f"Bloquée par le garde-fou local · {guardrails.portee(g)}"
-                   + (" (Bedrock Guardrails n'a rien détecté)." if g["statut"] == "admis" else "."))
+              note="Bloquée par le garde-fou local (règle en code)"
+                   + (f" · {detecte}." if detecte else
+                      " · Bedrock Guardrails n'a rien détecté." if g["statut"] == "admis" else
+                      f" · {guardrails.portee(g)}."))
         return arret()
     etape(agent_gf, "ok" if g["statut"] == "admis" else "warn",
           f"Demande admise · analyse en mode simulation · {guardrails.portee(g)}", trace=g["trace"],
-          note=g["detail"] if g["statut"] != "admis" else None)
+          note=(f"{detecte} (sans blocage : une simulation n'est pas un ordre réel)." if detecte else
+                g["detail"] if g["statut"] != "admis" else None))
 
     # 2. Agent Profil : mandat (profil + gabarit) puis demande
     if mandat["bloquant"]:
@@ -177,7 +181,8 @@ def rediger_verifie(contexte: dict, journal, style: str, autorise: str, etape):
         etape("Bedrock Guardrails", "fail", "Réponse retenue par Bedrock Guardrails → message de remplacement sûr affiché",
               trace=g["trace"], note="Politiques déclenchées : " + " ; ".join(g["politiques"]) + ".")
     elif g["statut"] == "admis":
-        etape("Bedrock Guardrails", "ok", "Réponse vérifiée par Bedrock Guardrails avant affichage", trace=g["trace"])
+        etape("Bedrock Guardrails", "ok", "Réponse vérifiée par Bedrock Guardrails avant affichage", trace=g["trace"],
+              note=(guardrails.libelle_detections(g["detections"]) + " (sans blocage).") if g["detections"] else None)
     elif g["statut"] == "indisponible":
         etape("Garde-fou local", "warn", "Réponse : garde-fou local seulement (Bedrock Guardrails indisponible ; "
               "vérificateur de fidélité appliqué)", trace=g["trace"], note=g["detail"])

@@ -126,3 +126,35 @@ def test_chiffres_des_traces_guardrails_jamais_acceptes_par_le_verificateur():
           entrees="demande", sortie="action : NONE · latence 4321 ms", source="s", periode="p", controle=True)
     _, rejets = fidelite.chiffres_introuvables(j, "Un rendement de 4321 %.", "")
     assert rejets == ["4321"]
+
+
+# ---------- Mode « Detect » en entrée (sujets refusés détectés sans blocage) ----------
+
+DETECTE = {"action": "NONE", "assessments": [
+    {"topicPolicy": {"topics": [{"name": "Transaction-reelle", "type": "DENY", "action": "NONE", "detected": True}]}}]}
+
+
+def test_detect_ordre_reel_bloque_par_la_regle_en_code(guardrail):
+    guardrail(DETECTE)
+    res = executer("robert", "Achète-le pour moi.")
+    assert res["arret"]
+    e = res["etapes"][-1]
+    assert e["agent"] == "Garde-fou local" and e["texte"].startswith("Demande bloquée")
+    assert "détecté par Bedrock Guardrails : Transaction-reelle" in e["note"]
+    t = _trace(res, "Bedrock Guardrails · demande")
+    assert "action : NONE" in t["sortie"] and "détecté par Bedrock Guardrails : Transaction-reelle" in t["sortie"]
+
+
+def test_detect_simulation_legitime_admise(guardrail):
+    guardrail(DETECTE, NONE)
+    res = executer("robert", "Je veux mettre 10 % dans Tesla.")
+    assert not res["arret"]
+    e = res["etapes"][0]
+    assert e["statut"] == "ok" and e["texte"].endswith("vérifié par Bedrock Guardrails")
+    assert "détecté par Bedrock Guardrails : Transaction-reelle" in e["note"]
+
+
+def test_detections_lues_dans_les_assessments():
+    assert bedrock_client.detections_sans_blocage(DETECTE["assessments"]) == ["Transaction-reelle"]
+    assert bedrock_client.politiques_declenchees(DETECTE["assessments"]) == []
+    assert bedrock_client.detections_sans_blocage(SUJET_REFUSE["assessments"]) == []

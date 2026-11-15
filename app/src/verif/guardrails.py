@@ -17,7 +17,7 @@ QUOI = {"INPUT": "demande", "OUTPUT": "réponse"}
 def controler(journal, texte: str, source: str) -> dict:
     """Applique le guardrail à `texte`. Renvoie {statut, politiques, trace, detail}."""
     if not bedrock_client.guardrail_actif():
-        return {"statut": "local", "politiques": [], "trace": None,
+        return {"statut": "local", "politiques": [], "detections": [], "trace": None,
                 "detail": "Bedrock Guardrails non configuré (MODE=local ou BEDROCK_GUARDRAIL_ID vide)"}
     gid, version = bedrock_client.config_guardrail()
     quoi = QUOI.get(source, source)
@@ -29,17 +29,25 @@ def controler(journal, texte: str, source: str) -> dict:
                           outil=f"ApplyGuardrail(source={source})", entrees=f"{quoi} · guardrail {gid} version {version}",
                           sortie=f"erreur {detail} → garde-fou local seulement",
                           source="Amazon Bedrock Guardrails", periode="exécution courante", controle=True)
-        return {"statut": "indisponible", "politiques": [], "trace": tid, "detail": detail}
+        return {"statut": "indisponible", "politiques": [], "detections": [], "trace": tid, "detail": detail}
     bloque = r["action"] == INTERVENU
     politiques = r["politiques"] or (["politique non précisée"] if bloque else [])
+    detections = r.get("detections") or []
+    sortie = (f"action : {r['action']} · politiques déclenchées : {' ; '.join(politiques) if politiques else 'aucune'}"
+              + (f" · {libelle_detections(detections)} (mode Detect, sans blocage)" if detections else "")
+              + f" · latence {r['latence_ms']} ms")
     tid = journal.log(titre=f"Bedrock Guardrails · {quoi}", agent="Bedrock Guardrails",
                       outil=f"ApplyGuardrail(source={source})",
                       entrees=f"{quoi} ({len(texte)} caractères) · guardrail {r['id']} version {r['version']}",
-                      sortie=(f"action : {r['action']} · politiques déclenchées : "
-                              f"{' ; '.join(politiques) if politiques else 'aucune'} · latence {r['latence_ms']} ms"),
-                      source="Amazon Bedrock Guardrails (ApplyGuardrail)", periode="exécution courante", controle=True)
-    return {"statut": "bloque" if bloque else "admis", "politiques": politiques, "trace": tid,
-            "detail": f"guardrail {r['id']} version {r['version']}"}
+                      sortie=sortie, source="Amazon Bedrock Guardrails (ApplyGuardrail)", periode="exécution courante",
+                      controle=True)
+    return {"statut": "bloque" if bloque else "admis", "politiques": politiques, "detections": detections,
+            "trace": tid, "detail": f"guardrail {r['id']} version {r['version']}"}
+
+
+def libelle_detections(detections: list[str]) -> str:
+    """« détecté par Bedrock Guardrails : Transaction-reelle » (politiques en mode Detect, sans blocage)."""
+    return "détecté par Bedrock Guardrails : " + ", ".join(detections)
 
 
 def portee(g: dict) -> str:
