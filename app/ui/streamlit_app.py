@@ -263,7 +263,8 @@ def afficher_reponse(res, index):
                         f"Sortie : **{t['sortie']}**  \nSource : {t['source']} · Période : {t['periode']}")
     with st.expander("Voir le mandat JSON (produit par l'Agent Profil)"):
         st.json(res["mandat"], expanded=False)
-    st.caption(f"Données : {res['source_donnees']} · montants et rendements en dollars canadiens (CAD)")
+    # Source des données (et sa version) : affichée une seule fois dans « Voir comment j'ai décidé »,
+    # pas sous chaque réponse ; la mention CAD figure déjà en tête de la réponse.
 
 
 # ---------- Écran 2 : « Mon compte » (compte de démonstration du persona) ----------
@@ -360,6 +361,7 @@ def ecran_analyse():
                            f"Explicabilité : {os.getenv('BEDROCK_MODELE_REDACTION', '?')}")
             else:
                 st.caption("Mode démonstration hors ligne : agents simulés, aucun appel AWS.")
+            st.caption(f"Données : {charger()[2]}")
             zone_agents = st.container()
         for i, e in enumerate(etat.etapes):
             etape_timeline(e, derniere=(i == len(etat.etapes) - 1), conteneur=zone_agents)
