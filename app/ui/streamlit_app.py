@@ -172,8 +172,12 @@ def afficher_reponse(res, index):
         return
     f, d, alt_ = res["fiche"], res["demande"], res["alternative"]
     auteur = f.get("auteur", "gabarit")
-    st.caption("Rédigé par le LLM (Amazon Bedrock), chiffres contrôlés par le code" if auteur == "llm"
-               else f"Rédigé par un gabarit de texte ({auteur}), chiffres contrôlés par le code")
+    if auteur.startswith("Bedrock Guardrails"):          # sortie retenue par le guardrail (src/verif/guardrails.py)
+        st.warning("Réponse retenue par Bedrock Guardrails : un message sûr la remplace (voir la trace à droite).",
+                   icon="🛡️")
+    else:
+        st.caption("Rédigé par le LLM (Amazon Bedrock), chiffres contrôlés par le code" if auteur == "llm"
+                   else f"Rédigé par un gabarit de texte ({auteur}), chiffres contrôlés par le code")
     st.markdown(f"**{f['intro']}**")
     st.caption("💱 Montants et rendements en dollars canadiens (CAD) — actifs en USD convertis au taux de la Banque du Canada.")
     for l in f["lignes"]:

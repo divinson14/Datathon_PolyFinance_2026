@@ -35,7 +35,7 @@ def test_llm_indisponible_la_demo_continue(monkeypatch):
         raise ConnectionError("identifiants expirés")
     monkeypatch.setattr(bedrock_client, "actif", lambda: True)
     monkeypatch.setattr(bedrock_client, "appeler_json", panne)
-    monkeypatch.setattr(bedrock_client, "guardrail_bloque", lambda m: False)
+    monkeypatch.setattr(bedrock_client, "guardrail_actif", lambda: False)
     res = executer("robert", "Je pense mettre 30 % dans Tesla.")
     assert not res["arret"] and res["verif"]["ok"] and "repli" in res["fiche"]["auteur"]
 

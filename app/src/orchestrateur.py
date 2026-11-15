@@ -5,7 +5,7 @@ from src.agents import analyste, explicabilite, gouvernance, profil
 from src.donnees.chargeur import charger
 from src.formatage import nombre, pct
 from src.traces.journal import Journal
-from src.verif import fidelite
+from src.verif import fidelite, guardrails
 
 
 def executer(persona_id: str | None, message: str, style: str | None = None, on_etape=None,
@@ -27,11 +27,25 @@ def executer(persona_id: str | None, message: str, style: str | None = None, on_
     def arret():
         return {"arret": True, "etapes": etapes, "journal": journal, "persona": persona, "mandat": mandat}
 
-    # 1. Garde-fou
-    if profil.demande_de_transaction(message):
-        etape("Bedrock Guardrails", "fail", "Demande bloquée : aucune transaction réelle n'est possible. Reformule ta question pour une analyse en simulation.")
+    # 1. Garde-fous d'ENTRÉE : regex locale (rapide, sans AWS) PUIS Bedrock Guardrails (MODE=bedrock + guardrail configuré).
+    #    Guardrails est consulté même si la regex bloque déjà : la trace montre le verdict des deux.
+    local = profil.demande_de_transaction(message)
+    g = guardrails.controler(journal, message, "INPUT")
+    agent_gf = "Bedrock Guardrails" if g["statut"] in ("admis", "bloque") else "Garde-fou local"
+    if g["statut"] == "bloque":
+        etape(agent_gf, "fail", f"Demande bloquée par Bedrock Guardrails : {' ; '.join(g['politiques'])}. "
+              "Aucune transaction réelle ni conseil personnalisé : reformule ta question pour une analyse en simulation.",
+              trace=g["trace"], note="Garde-fou local : " + ("a aussi bloqué la demande." if local else "rien détecté."))
         return arret()
-    etape("Bedrock Guardrails", "ok", "Demande admise · analyse en mode simulation")
+    if local:
+        etape(agent_gf, "fail", "Demande bloquée : aucune transaction réelle n'est possible. "
+              "Reformule ta question pour une analyse en simulation.", trace=g["trace"],
+              note=f"Bloquée par le garde-fou local · {guardrails.portee(g)}"
+                   + (" (Bedrock Guardrails n'a rien détecté)." if g["statut"] == "admis" else "."))
+        return arret()
+    etape(agent_gf, "ok" if g["statut"] == "admis" else "warn",
+          f"Demande admise · analyse en mode simulation · {guardrails.portee(g)}", trace=g["trace"],
+          note=g["detail"] if g["statut"] != "admis" else None)
 
     # 2. Agent Profil : mandat (profil + gabarit) puis demande
     if mandat["bloquant"]:
@@ -155,6 +169,18 @@ def rediger_verifie(contexte: dict, journal, style: str, autorise: str, etape):
             verif = fidelite.verifier(journal, fiche, autorise, version + 2)
     etape("Vérificateur de fidélité", "ok" if verif["ok"] else "fail", "Réponse validée" if verif["ok"] else "Réponse non validée",
           note=f"{verif['total']}/{verif['total']} chiffres retrouvés dans les traces." if verif["ok"] else "", trace=verif["trace"])
+
+    # Garde-fou de SORTIE : Bedrock Guardrails sur le texte réellement affiché (MODE=bedrock + guardrail configuré).
+    g = guardrails.controler(journal, guardrails.texte_fiche(fiche), "OUTPUT")
+    if g["statut"] == "bloque":
+        fiche = guardrails.fiche_remplacement(fiche, g["politiques"])
+        etape("Bedrock Guardrails", "fail", "Réponse retenue par Bedrock Guardrails → message de remplacement sûr affiché",
+              trace=g["trace"], note="Politiques déclenchées : " + " ; ".join(g["politiques"]) + ".")
+    elif g["statut"] == "admis":
+        etape("Bedrock Guardrails", "ok", "Réponse vérifiée par Bedrock Guardrails avant affichage", trace=g["trace"])
+    elif g["statut"] == "indisponible":
+        etape("Garde-fou local", "warn", "Réponse : garde-fou local seulement (Bedrock Guardrails indisponible ; "
+              "vérificateur de fidélité appliqué)", trace=g["trace"], note=g["detail"])
     return fiche, verif
 
 

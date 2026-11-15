@@ -28,10 +28,9 @@ with open(APP / "config" / "alias_actifs.yaml", encoding="utf-8") as _f:
 
 
 def demande_de_transaction(message: str) -> bool:
-    """Garde-fou local, doublé par Bedrock Guardrails en mode bedrock."""
-    if MOTS_TRANSACTION.search(message):
-        return True
-    return bedrock_client.actif() and bedrock_client.guardrail_bloque(message)
+    """Garde-fou LOCAL (regex, rapide, sans AWS). Bedrock Guardrails est appelé ensuite par l'orchestrateur
+    (src/verif/guardrails.py), en MODE=bedrock si un guardrail est configuré."""
+    return bool(MOTS_TRANSACTION.search(message))
 
 
 # ---------- Mandat : profil (entrée) + gabarit (config) ----------

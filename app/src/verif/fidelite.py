@@ -23,8 +23,9 @@ def _sans_accents(texte: str) -> str:
 
 
 def chiffres_introuvables(journal, texte: str, contexte_autorise: str) -> tuple[list[str], list[str]]:
-    """(chiffres trouvés dans `texte`, chiffres absents des traces et du contexte autorisé). Pure : aucune trace."""
-    corpus = " ".join(f"{t['entrees']} {t['sortie']}" for t in journal.traces) + " " + contexte_autorise
+    """(chiffres trouvés dans `texte`, chiffres absents des traces et du contexte autorisé). Pure : aucune trace.
+    Les traces de CONTRÔLE (controle=True, ex. Bedrock Guardrails : latence, version) ne sont jamais une source de chiffres."""
+    corpus = " ".join(f"{t['entrees']} {t['sortie']}" for t in journal.traces if not t.get("controle")) + " " + contexte_autorise
     autorises = {_norm(n) for n in NUM_RE.findall(corpus)}
     trouves = NUM_RE.findall(texte)
     return trouves, [n for n in trouves if _norm(n) not in autorises]

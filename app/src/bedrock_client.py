@@ -3,6 +3,7 @@ et les agents utilisent leur version simulée (utile pour développer sans compt
 import json
 import os
 import re
+import time
 
 from src.config import MODE
 
@@ -34,9 +35,9 @@ def appeler(texte: str, modele: str = "redaction", max_tokens: int = 1500) -> st
     # de toute façon pas sur le LLM : les chiffres viennent du code et le vérificateur contrôle le texte.
     if os.getenv("BEDROCK_TEMPERATURE"):
         params["inferenceConfig"]["temperature"] = float(os.environ["BEDROCK_TEMPERATURE"])
-    if os.getenv("BEDROCK_GUARDRAIL_ID"):
-        params["guardrailConfig"] = {"guardrailIdentifier": os.environ["BEDROCK_GUARDRAIL_ID"],
-                                     "guardrailVersion": os.getenv("BEDROCK_GUARDRAIL_VERSION", "DRAFT")}
+    # Pas de guardrailConfig ici : Bedrock Guardrails contrôle la DEMANDE de l'utilisateur et la RÉPONSE affichée
+    # (appliquer_guardrail, src/verif/guardrails.py). Les prompts internes des agents contiennent des consignes
+    # (« aucun conseil personnalisé »…) qu'un sujet refusé bloquerait à tort (faux positifs). Voir docs/decisions.md.
     rep = _bedrock().converse(**params)
     # TODO équipe : journaliser rep["usage"] (jetons) et rep["metrics"]["latencyMs"] dans CloudWatch
     # La réponse peut contenir plusieurs blocs (raisonnement, texte…) dans n'importe quel ordre :
@@ -70,18 +71,57 @@ def modele_strands(role: str = "analyste"):
     from strands.models import BedrockModel
     model_id = os.getenv(f"BEDROCK_MODELE_{role.upper()}") or os.environ["BEDROCK_MODELE_REDACTION"]
     params = {"model_id": model_id, "region_name": os.getenv("AWS_REGION", "us-east-1")}
-    if os.getenv("BEDROCK_GUARDRAIL_ID"):
-        params["guardrail_id"] = os.environ["BEDROCK_GUARDRAIL_ID"]
-        params["guardrail_version"] = os.getenv("BEDROCK_GUARDRAIL_VERSION", "DRAFT")
+    # Pas de guardrail sur les appels internes de l'Analyste (même raison que dans appeler()).
     return BedrockModel(**params)
 
 
-def guardrail_bloque(texte: str) -> bool:
-    """True si Bedrock Guardrails intervient sur l'entrée."""
-    if not os.getenv("BEDROCK_GUARDRAIL_ID"):
-        return False
-    rep = _bedrock().apply_guardrail(
-        guardrailIdentifier=os.environ["BEDROCK_GUARDRAIL_ID"],
-        guardrailVersion=os.getenv("BEDROCK_GUARDRAIL_VERSION", "DRAFT"),
-        source="INPUT", content=[{"text": {"text": texte}}])
-    return rep.get("action") == "GUARDRAIL_INTERVENED"
+# ---------- Bedrock Guardrails (ApplyGuardrail) ----------
+
+def config_guardrail() -> tuple[str, str] | None:
+    """(identifiant, version) lus dans .env, ou None si BEDROCK_GUARDRAIL_ID est vide.
+    Version vide ou absente → DRAFT (os.getenv(..., "DRAFT") renverrait "" pour une variable vide)."""
+    gid = os.getenv("BEDROCK_GUARDRAIL_ID")
+    return (gid, os.getenv("BEDROCK_GUARDRAIL_VERSION") or "DRAFT") if gid else None
+
+
+def guardrail_actif() -> bool:
+    """Bedrock Guardrails n'est appelé qu'en MODE=bedrock ET si un guardrail est configuré."""
+    return actif() and config_guardrail() is not None
+
+
+def politiques_declenchees(assessments: list) -> list[str]:
+    """Politiques déclenchées, lues dans les `assessments` d'ApplyGuardrail (action ≠ NONE). Code pur."""
+    trouvees = []
+    for a in assessments or []:
+        for t in (a.get("topicPolicy") or {}).get("topics", []):
+            if t.get("action", "NONE") != "NONE":
+                trouvees.append(f"sujet refusé « {t.get('name')} »")
+        for f in (a.get("contentPolicy") or {}).get("filters", []):
+            if f.get("action", "NONE") != "NONE":
+                trouvees.append(f"filtre de contenu {f.get('type')} (confiance {f.get('confidence')})")
+        mots = a.get("wordPolicy") or {}
+        for w in mots.get("customWords", []) + mots.get("managedWordLists", []):
+            if w.get("action", "NONE") != "NONE":
+                trouvees.append(f"mot interdit « {w.get('match')} »")
+        sensible = a.get("sensitiveInformationPolicy") or {}
+        for p in sensible.get("piiEntities", []):
+            if p.get("action", "NONE") != "NONE":
+                trouvees.append(f"information personnelle {p.get('type')} ({p.get('action')})")
+        for r in sensible.get("regexes", []):
+            if r.get("action", "NONE") != "NONE":
+                trouvees.append(f"motif sensible « {r.get('name')} » ({r.get('action')})")
+        for g in (a.get("contextualGroundingPolicy") or {}).get("filters", []):
+            if g.get("action", "NONE") != "NONE":
+                trouvees.append(f"ancrage contextuel {g.get('type')}")
+    return list(dict.fromkeys(trouvees))           # sans doublons, ordre conservé
+
+
+def appliquer_guardrail(texte: str, source: str) -> dict:
+    """ApplyGuardrail sur un texte (source = INPUT pour la demande, OUTPUT pour la réponse affichée).
+    Renvoie {action, politiques, id, version, latence_ms}. Lève l'erreur AWS telle quelle (gérée par l'appelant)."""
+    gid, version = config_guardrail()
+    debut = time.perf_counter()
+    rep = _bedrock().apply_guardrail(guardrailIdentifier=gid, guardrailVersion=version, source=source,
+                                     content=[{"text": {"text": texte}}])
+    return {"action": rep.get("action", "NONE"), "politiques": politiques_declenchees(rep.get("assessments")),
+            "id": gid, "version": version, "latence_ms": round((time.perf_counter() - debut) * 1000)}

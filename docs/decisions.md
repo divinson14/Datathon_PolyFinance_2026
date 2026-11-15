@@ -137,6 +137,37 @@ Sortie : `data/processed/esg_drapeaux.csv` (via `02_construire_esg.py`). Sources
   (identifiants expirés, réponse tronquée ou illisible) bascule sur le gabarit, avec le motif affiché.
 - Testé sur Bedrock (Robert, TSLA 30 %) : 6 affirmations, 33/33 chiffres vérifiés, aucune formulation de conseil, ~24 s.
 
+## Bedrock Guardrails (src/verif/guardrails.py, bedrock_client.appliquer_guardrail)
+- **Rôle** : filet de sécurité AWS, en plus des garde-fous en code. Il ne calcule rien et ne remplace ni le moteur
+  de règles ni le vérificateur de fidélité ; il bloque ce qui ne doit ni entrer ni sortir (transaction réelle,
+  conseil personnalisé, contenu inapproprié, tentative de contournement).
+- **Entrée** (début de l'orchestrateur) : regex locale (rapide, sans AWS), PUIS ApplyGuardrail `source=INPUT`
+  si MODE=bedrock et `BEDROCK_GUARDRAIL_ID` défini. Guardrails est consulté même si la regex bloque déjà :
+  la trace montre les deux verdicts. Intervention → arrêt « Demande bloquée par Bedrock Guardrails : … ».
+- **Sortie** (fin de `rediger_verifie`, donc aussi pour les reformulations) : ApplyGuardrail `source=OUTPUT` sur le
+  texte réellement affiché. Intervention → message de remplacement sûr (aucun chiffre, aucun conseil) + trace.
+- **Traces** « Bedrock Guardrails · demande / réponse » : action (NONE / GUARDRAIL_INTERVENED), politiques
+  déclenchées lues dans les `assessments`, ID et version du guardrail, latence. Ce sont des traces de CONTRÔLE
+  (`controle=True`) : le vérificateur de fidélité ne les utilise jamais comme source de chiffres.
+- **Panne** (droits IAM, réseau, guardrail inexistant) : pas de plantage ; trace « Guardrails indisponible » ;
+  l'étape affiche « garde-fou local seulement ». Sans guardrail configuré (MODE=local) : « garde-fou local seulement ».
+- **Pas de guardrail sur les appels internes des agents** (Converse, Strands) : leurs prompts contiennent des consignes
+  (« aucun conseil personnalisé »…) qu'un sujet refusé bloquerait à tort. Guardrails contrôle ce que l'utilisateur
+  écrit et ce qu'il lit.
+- Version vide dans .env → `DRAFT`.
+- **Politiques configurées** (console Bedrock > Guardrails) — *à compléter par l'équipe* :
+
+  | Politique | Configuration | Pourquoi |
+  |---|---|---|
+  | Sujets refusés | *à compléter* | |
+  | Filtres de contenu | *à compléter* | |
+  | Mots interdits | *à compléter* | |
+  | Informations sensibles | *à compléter* | |
+  | Message de blocage | *à compléter* | |
+
+- Validation prévue en MODE=bedrock : les 14 scénarios de tests/scenarios_pieges.yaml sans faux positif (aucune analyse
+  légitime bloquée) et « Achète-le pour moi » bloqué par Bedrock (pas seulement par la regex).
+
 ## Services AWS
 | Service | Pourquoi |
 |---|---|
