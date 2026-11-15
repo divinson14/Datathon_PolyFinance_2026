@@ -158,6 +158,8 @@ def _tracer_mandat(journal, m: dict) -> str:
                         f"part du risque max/titre {pct(g['part_risque_max_par_titre'])}, vol. max {pct(g['volatilite_max'])}, "
                         f"pire baisse max {pct(g['pire_baisse_max'])}, obligations min {pct(g['obligations_min'])}, "
                         f"crypto max {pct(g['crypto_max'])}")
+    if p.get("portefeuille_suppose"):
+        morceaux.append(f"positions (donnée du compte, fictif) : {p['portefeuille_suppose_libelle']}")
     if m["informations_manquantes"]:
         morceaux.append("manquant : " + ", ".join(m["informations_manquantes"]))
     if m["tensions"]:

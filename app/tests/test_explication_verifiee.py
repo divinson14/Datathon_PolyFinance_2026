@@ -93,3 +93,19 @@ def test_resume_gouvernance_avec_conseil_remplace_par_le_repli(monkeypatch):
     v = gouvernance.verifier(res["journal"], res["demande"], "TSLA", res["gabarit"], univers, "test", res["persona"])
     assert v["redaction"].startswith("code (repli") and "conseil" in v["redaction"]
     assert "recommande" not in v["resume"]
+
+
+def test_positions_du_persona_etiquetees_donnee_du_compte():
+    """Les positions du persona sont une « Donnée du compte (fictif) » (réponse ET trace), et passent le vérificateur."""
+    from src.verif import fidelite
+    for pid, msg in (("robert", "Je pense mettre 30 % dans Tesla."), ("amira", "Je pense mettre 20 % dans Nvidia."),
+                     ("mateo", "Je veux mettre 10 % de mon portefeuille dans Tesla, mais je tiens aux critères ESG.")):
+        res = executer(pid, msg)
+        for style in ("avance", "inter"):
+            f = explicabilite._gabarit_texte(res["contexte"], style)
+            compte = [l for l in f["lignes"] if l["tag"] == explicabilite.TAG_COMPTE]
+            assert len(compte) == 1 and res["persona"]["portefeuille_suppose_libelle"] in compte[0]["texte"]
+            assert compte[0]["traces"] == [res["mandat"]["trace"]]
+            assert fidelite.verifier(res["journal"], f, res["autorise"], 90)["ok"], (pid, style)
+        trace = res["journal"].trouver(res["mandat"]["trace"])
+        assert "positions (donnée du compte, fictif)" in trace["sortie"]

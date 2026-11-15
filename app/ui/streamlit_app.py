@@ -13,7 +13,7 @@ import pandas as pd
 import streamlit as st
 
 from src import bedrock_client, config
-from src.agents import explicabilite, profil
+from src.agents import explicabilite, gouvernance, profil
 from src.donnees.chargeur import LIBELLE_DEMO, charger, donnees_fictives
 from src.formatage import money, pct
 from src.orchestrateur import executer, reformuler
@@ -25,7 +25,6 @@ from ui.style import COULEURS, injecter_style
 st.set_page_config(page_title="AlphaForge", layout="wide")
 injecter_style()
 
-ICONES = {"ok": "✅", "warn": "⚠️", "fail": "❌"}
 etat = st.session_state
 etat.setdefault("persona", None)
 etat.setdefault("profil_saisi", None)
@@ -91,35 +90,6 @@ def ecran_profil():
                 st.rerun()
 
 
-# ---------- Panneau droit : une carte par étape ----------
-def afficher_etape(e, conteneur):
-    with conteneur.container(border=True):
-        st.markdown(f"{ICONES.get(e['statut'], '•')} **{e['agent']}** — {e['texte']}")
-        if "mandat" in e:
-            st.dataframe(pd.DataFrame(e["mandat"], columns=["", "Valeur"]), hide_index=True, width="stretch")
-        if "calculs" in e:
-            st.dataframe(pd.DataFrame(e["calculs"], columns=["Calcul", "Résultat", "Trace"]), hide_index=True, width="stretch")
-        if "regles" in e:
-            st.dataframe(pd.DataFrame([{"Règle": r["regle"], "Limite": r["limite"], "Valeur": r["valeur"],
-                                        "Statut": ("⚠️ Information manquante" if r.get("manquant") else
-                                                   "➖ Non applicable" if r.get("neutre") else
-                                                   "✅ Respecté" if r["ok"] else "❌ Violé")} for r in e["regles"]]),
-                         hide_index=True, width="stretch")
-        if e.get("resume"):
-            st.markdown(e["resume"])
-            if e.get("redaction"):
-                st.caption("Formulé par le LLM, chiffres vérifiés" if e["redaction"] == "llm"
-                           else f"Formulé par le code ({e['redaction']})")
-        if e.get("consigne"):
-            st.caption(f"Correction envoyée à l'Analyste : « {e['consigne']} »")
-        for tension in e.get("tensions") or []:
-            st.caption(f"⚖️ Tension avec le profil : {tension}")
-        if e.get("note"):
-            st.caption(e["note"])
-        if e.get("trace"):
-            st.caption(f"Trace : {e['trace']}")
-
-
 # ---------- Courbe de bascule : la thèse en une image ----------
 def courbe_bascule(res):
     """Part du risque portée par l'actif demandé, selon son poids. Tous les points viennent de l'outil
@@ -182,9 +152,38 @@ def courbe_bascule(res):
 
 
 # ---------- Réponse dans le chat ----------
-def afficher_reponse(res, index):
+GARDE_FOUS = ("Bedrock Guardrails", "Garde-fou local")
+
+
+def _verdict(res) -> tuple[str, str, list, str | None]:
+    """(statut, titre, 3 chiffres clés, alternative) lus dans le résultat du CODE (verdicts, mesures, point de bascule)."""
     if res["arret"]:
-        st.markdown(res["etapes"][-1]["texte"])
+        e = res["etapes"][-1]
+        return ("bloque" if e["agent"] in GARDE_FOUS else "manquant"), e["texte"], [], None
+    d, g, s, verd, alt_ = res["demande"], res["gabarit"], res["symbole"], res["verdicts"], res["alternative"]
+    w, n = pct(d["part"]), len(verd["violees"])
+    b = d["bascule"]
+    chiffres = [(pct(d["mesures"]["parts_risque"].get(s, 0.0)), f"du risque porté par {s} (limite {pct(g['part_risque_max_par_titre'])})"),
+                (pct(d["mesures"]["vol"]), f"volatilité du portefeuille (limite {pct(g['volatilite_max'])})"),
+                (pct(b["part_max"]) if b["base_conforme"] and b["part_max"] is not None else "—", "point de bascule")]
+    manquantes = ", ".join(r["regle"] for r in verd.get("manquantes") or [])
+    if verd["statut"] == gouvernance.CONFORME and not manquantes:
+        statut, titre = "respecte", f"{w} en {s} respecte les limites de ton profil."
+    elif verd["statut"] == gouvernance.CONFORME:
+        statut, titre = "manquant", f"{w} en {s} ne viole aucune règle, mais une information manque : {manquantes}."
+    elif verd["statut"] == gouvernance.CORRIGEABLE:
+        statut, titre = "a_revoir", f"{w} en {s} dépasse {n} limite(s) de ton profil."
+    else:
+        statut, titre = "bloque", (f"Aucune part de {s} n'est compatible avec ton profil." if b["base_conforme"]
+                                   else "Le portefeuille actuel dépasse déjà une limite du profil.")
+    alternative = (f"Alternative vérifiée : {pct(alt_['part'])} en {s}, aucune règle violée." if alt_ else None)
+    return statut, titre, chiffres, alternative
+
+
+def afficher_reponse(res, index):
+    statut, titre, chiffres, alternative = _verdict(res)
+    carte_verdict(statut, titre, chiffres, alternative)
+    if res["arret"]:
         return
     f, d, alt_ = res["fiche"], res["demande"], res["alternative"]
     auteur = f.get("auteur", "gabarit")
@@ -315,20 +314,21 @@ def ecran_analyse():
 
     gauche, droite = st.columns([1.15, 1], gap="large")
     with droite:
-        st.markdown("#### Dans les coulisses")
-        import os
-        from src import bedrock_client
+        voir = st.toggle("Voir comment j'ai décidé", value=True, key="voir_coulisses")
         if bedrock_client.actif():
-            st.caption(f"🟢 Mode **Bedrock** · région {os.getenv('AWS_REGION', '?')} · "
-                       f"Profil : {os.getenv('BEDROCK_MODELE_RAPIDE', '?')} · Explicabilité : {os.getenv('BEDROCK_MODELE_REDACTION', '?')}")
+            st.caption(f"Agents sur Amazon Bedrock · Profil : {os.getenv('BEDROCK_MODELE_RAPIDE', '?')} · "
+                       f"Explicabilité : {os.getenv('BEDROCK_MODELE_REDACTION', '?')}")
         else:
-            st.caption("⚪ Mode **local** (aucun appel AWS). Pour Bedrock : MODE=bedrock dans app/.env, puis redémarrer Streamlit.")
+            st.caption("Mode démonstration hors ligne : agents simulés, aucun appel AWS.")
         zone_agents = st.container()
-        for e in etat.etapes:
-            afficher_etape(e, zone_agents)
+        if voir:
+            for i, e in enumerate(etat.etapes):
+                etape_timeline(e, derniere=(i == len(etat.etapes) - 1), conteneur=zone_agents)
+            if not etat.etapes:
+                zone_agents.caption("Les agents apparaîtront ici, un par un : Guardrails → Profil → Analyste → "
+                                    "Gouvernance → Explicabilité → Vérificateur de fidélité.")
 
     with gauche:
-        st.markdown("#### Conversation")
         fil = st.container(height=620)
         with fil:
             if not etat.messages:
@@ -353,9 +353,14 @@ def ecran_analyse():
             attente = st.empty()
             attente.info("Les agents analysent ta demande… suis leur travail à droite.")
 
-        def en_direct(e):                       # chaque agent apparaît au fur et à mesure
+        chrono = {"t": time.perf_counter()}
+
+        def en_direct(e):                       # chaque agent apparaît au fur et à mesure, avec sa durée
+            maintenant = time.perf_counter()
+            e["duree"], chrono["t"] = maintenant - chrono["t"], maintenant
             etat.etapes.append(e)
-            afficher_etape(e, zone_agents)
+            if voir:
+                etape_timeline(e, conteneur=zone_agents)
 
         res = executer(None if saisie else etat.persona, question, on_etape=en_direct, profil_saisi=saisie,
                        memoire=etat.memoire, en_attente=etat.demande_en_attente)

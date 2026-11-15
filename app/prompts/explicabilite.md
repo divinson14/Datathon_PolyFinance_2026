@@ -6,7 +6,7 @@ Rédige une réponse pour l'investisseur, dans ce style : {style}
 
 Réponds UNIQUEMENT avec ce JSON :
 {"intro": "<1 phrase de résumé>",
- "lignes": [{"tag": "Fait" | "Hypothèse" | "Scénario fictif", "texte": "<1 à 2 phrases>", "traces": ["T-xx"]}],
+ "lignes": [{"tag": "Fait" | "Donnée du compte (fictif)" | "Hypothèse" | "Scénario fictif", "texte": "<1 à 2 phrases>", "traces": ["T-xx"]}],
  "limites": "<1 à 3 phrases sur les limites et incertitudes>"}
 
 Règles strictes :
@@ -17,6 +17,7 @@ Règles strictes :
   Pas d'énumération des autres seuils ni du détail des lignes déjà conformes.
 - « Fait » = ce qu'une trace dit EXPLICITEMENT, rien de plus ; cite son T-xx dans « traces ».
   « Hypothèse » = choix de l'équipe ou information supposée ; « Scénario fictif » = allocation simulée.
+  « Donnée du compte (fictif) » = positions ou valeur du compte de démonstration du persona (trace « Construction du mandat »).
 - N'invente AUCUNE justification ni lien de cause : si une trace ne le calcule pas, ne l'affirme pas
   (ex. interdit : « les obligations ont donc aussi souffert » si aucune trace ne mesure les obligations).
   Une interprétation éventuelle est étiquetée « Hypothèse » et formulée prudemment.

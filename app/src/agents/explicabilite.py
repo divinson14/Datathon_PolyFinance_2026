@@ -11,6 +11,7 @@ from src.formatage import money, pct
 
 # Mentions ajoutées par le CODE à chaque réponse (LLM ou gabarit), sans aucun chiffre :
 # le vérificateur de fidélité n'a donc rien à y contrôler.
+TAG_COMPTE = "Donnée du compte (fictif)"     # étiquette des positions du persona (compte de démonstration)
 MENTION_CAD = ("Montants et rendements en dollars canadiens (CAD) : les actifs cotés en dollars américains "
                "sont convertis au taux quotidien de la Banque du Canada.")
 MENTION_FICTIVES = ("Attention : DONNÉES FICTIVES de démonstration (data/processed/ absent) ; "
@@ -99,6 +100,12 @@ def _gabarit_texte(c: dict, style: str) -> dict:
     lim_risque = pct(g["part_risque_max_par_titre"])
     annee = str(CALCUL["annee_scenario"])
     lignes = []
+    # Positions du compte de démonstration : une DONNÉE du compte (fictif), pas une hypothèse de calcul.
+    compte = {"tag": TAG_COMPTE, "traces": [c["mandat"]["trace"]] if c["mandat"].get("trace") else [],
+              "texte": (f"Compte de démonstration : {p['portefeuille_suppose_libelle']} · valeur {money(p['capital'])}."
+                        if style == "avance" else
+                        f"Ton compte (fictif) aujourd'hui : {p['portefeuille_suppose_libelle']}, "
+                        f"pour une valeur de {money(p['capital'])}.")}
     if style == "avance":
         intro = (f"Demande analysée : {w} en {s}. Elle respecte les {len(verd['regles'])} règles de votre mandat." if n == 0 else
                  f"Demande analysée : {w} en {s}. {n} règle(s) de votre mandat ne sont pas respectées ; voici le détail"
@@ -165,6 +172,7 @@ def _gabarit_texte(c: dict, style: str) -> dict:
                            "traces": [alt["mesures"]["trace"], alt["rejeu"]["trace"], alt["verdicts"]["trace"]]})
         limites = (f"{annee} et les 5 dernières années ne sont que des exemples du passé : ça ne dit pas ce qui arrivera demain. "
                    f"On a aussi supposé ton portefeuille actuel : {p['portefeuille_suppose_libelle']}.")
+    lignes.insert(0, compte)
     return _mentions_obligatoires({"intro": intro, "lignes": lignes, "limites": limites, "style": style,
                                    "auteur": "gabarit"})
 
