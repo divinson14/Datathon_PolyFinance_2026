@@ -26,6 +26,7 @@ GABARITS = _yaml("gabarits_risque.yaml")
 CALCUL = _yaml("calcul.yaml")
 PROFIL = _yaml("profil.yaml")
 STYLES = _yaml("styles_explication.yaml")
+TENSIONS_PROFIL = _yaml("tensions_profil.yaml")
 PERSONAS = {
     p.stem: json.loads(p.read_text(encoding="utf-8"))
     for p in sorted((APP / "config" / "personas").glob("*.json"))

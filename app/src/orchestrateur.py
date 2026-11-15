@@ -78,12 +78,15 @@ def executer(persona_id: str | None, message: str, style: str | None = None, on_
     etape("Agent Analyste · tentative 1", "ok", f"{len(calculs_1)} appels d'outils de calcul", calculs=calculs_1,
           **({"note": d["raisonnement"]} if d["raisonnement"] else {}))
 
-    # 4. Agent Gouvernance + boucle de correction (vérification indépendante de chaque alternative)
+    # 4. Agent Gouvernance (jugement par le code, formulation par le LLM) + boucle de correction
+    #    La boucle ne tourne QUE si le statut calculé est « corrigeable » (jamais si la base viole déjà le mandat).
     verd = gouvernance.verifier(journal, d, symbole, gabarit, univers, f"demande {pct(part)} {symbole}", persona)
     alt = None
-    if verd["violees"]:
+    formulation = dict(regles=verd["regles"], trace=verd["trace"], consigne=verd["consigne"],
+                       resume=verd["resume"], tensions=verd["tensions_profil"])
+    if verd["statut"] == gouvernance.CORRIGEABLE:
         etape("Agent Gouvernance", "fail", f"{len(verd['violees'])} règle(s) violée(s) → correction demandée à l'Analyste",
-              regles=verd["regles"], trace=verd["trace"], consigne=verd["consigne"])
+              **formulation)
         consigne, part_prec = verd["consigne"], part
         for t in range(2, config.MAX_TENTATIVES + 1):
             candidat = gouvernance.prochaine_part(part_prec, t, bascule)   # repli déterministe si le modèle échoue
@@ -97,22 +100,26 @@ def executer(persona_id: str | None, message: str, style: str | None = None, on_
                 ("Volatilité / pire baisse", f"{pct(a['mesures']['vol'])} / {pct(a['mesures']['pire_baisse'])}", a["mesures"]["trace"]),
                 (f"Rejeu 2022 · {pct(choisie)} {symbole}", pct(a["rejeu"]["rend"]), a["rejeu"]["trace"]),
                 *a["extras"]], **({"note": a["raisonnement"]} if a["raisonnement"] else {}))
-            v2 = gouvernance.verifier(journal, a, symbole, gabarit, univers, f"alternative {pct(choisie)} {symbole}", persona)
+            v2 = gouvernance.verifier(journal, a, symbole, gabarit, univers, f"alternative {pct(choisie)} {symbole}", persona,
+                                      bascule=bascule, formuler=False)
             if not v2["violees"]:
                 a["verdicts"] = v2
                 alt = a
-                etape("Agent Gouvernance", "ok", f"{len(v2['regles'])} règles sur {len(v2['regles'])} respectées", regles=v2["regles"], trace=v2["trace"])
+                etape("Agent Gouvernance", "ok", f"{len(v2['regles'])} règles sur {len(v2['regles'])} respectées",
+                      regles=v2["regles"], trace=v2["trace"], resume=v2["resume"])
                 break
-            etape("Agent Gouvernance", "fail", f"Toujours {len(v2['violees'])} règle(s) violée(s) → nouvelle correction", regles=v2["regles"], trace=v2["trace"])
-            consigne = (f"L'alternative à {pct(choisie)} de {symbole} viole encore : "
-                        + ", ".join(r["regle"] for r in v2["violees"]) + ". Propose une part plus prudente.")
-            part_prec = choisie
+            etape("Agent Gouvernance", "fail", f"Toujours {len(v2['violees'])} règle(s) violée(s) → nouvelle correction",
+                  regles=v2["regles"], trace=v2["trace"], resume=v2["resume"])
+            consigne, part_prec = v2["consigne"], choisie
         if alt is None:
-            raison = (verd["consigne"] if candidat is None else
-                      f"aucune alternative conforme trouvée en {config.MAX_TENTATIVES} tentatives")
-            etape("Orchestrateur", "warn", f"Pas d'alternative proposée : {raison} Le système le dit honnêtement.")
+            etape("Orchestrateur", "warn", f"Pas d'alternative proposée : aucune alternative conforme trouvée en "
+                                           f"{config.MAX_TENTATIVES} tentatives. Le système le dit honnêtement.")
+    elif verd["statut"] == gouvernance.IMPOSSIBLE:
+        etape("Agent Gouvernance", "fail", f"{len(verd['violees'])} règle(s) violée(s) → aucune correction possible", **formulation)
+        etape("Orchestrateur", "warn", f"Pas d'alternative proposée : aucune part de {symbole} n'est compatible avec le mandat. "
+                                       "Le système le dit honnêtement.")
     else:
-        etape("Agent Gouvernance", "ok", "La demande respecte toutes les règles du mandat", regles=verd["regles"], trace=verd["trace"])
+        etape("Agent Gouvernance", "ok", "La demande respecte toutes les règles du mandat", **formulation)
 
     # 5. Agent Explicabilité + vérificateur de fidélité
     nom_actif = str(univers.loc[univers["symbole"] == symbole, "nom"].iloc[0])

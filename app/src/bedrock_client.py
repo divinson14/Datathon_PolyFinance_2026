@@ -49,9 +49,9 @@ def appeler(texte: str, modele: str = "redaction", max_tokens: int = 1500) -> st
     return texte_rep
 
 
-def appeler_json(texte: str, modele: str = "redaction") -> dict | None:
+def appeler_json(texte: str, modele: str = "redaction", max_tokens: int = 1500) -> dict | None:
     """Appelle le modèle et extrait le premier objet JSON de la réponse (None si illisible)."""
-    brut = appeler(texte, modele)
+    brut = appeler(texte, modele, max_tokens)
     m = re.search(r"\{.*\}", brut, re.S)
     try:
         return json.loads(m.group(0)) if m else None

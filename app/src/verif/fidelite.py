@@ -9,12 +9,17 @@ def _norm(s: str) -> str:
     return f"{abs(float(s.replace(' ', '').replace(',', '.'))):.2f}"
 
 
-def verifier(journal, fiche: dict, contexte_autorise: str, version: int) -> dict:
+def chiffres_introuvables(journal, texte: str, contexte_autorise: str) -> tuple[list[str], list[str]]:
+    """(chiffres trouvés dans `texte`, chiffres absents des traces et du contexte autorisé). Pure : aucune trace."""
     corpus = " ".join(f"{t['entrees']} {t['sortie']}" for t in journal.traces) + " " + contexte_autorise
     autorises = {_norm(n) for n in NUM_RE.findall(corpus)}
-    texte = " ".join([fiche["intro"], *[l["texte"] for l in fiche["lignes"]], fiche["limites"]])
     trouves = NUM_RE.findall(texte)
-    rejets = [n for n in trouves if _norm(n) not in autorises]
+    return trouves, [n for n in trouves if _norm(n) not in autorises]
+
+
+def verifier(journal, fiche: dict, contexte_autorise: str, version: int) -> dict:
+    texte = " ".join([fiche["intro"], *[l["texte"] for l in fiche["lignes"]], fiche["limites"]])
+    trouves, rejets = chiffres_introuvables(journal, texte, contexte_autorise)
     sortie = (f"{len(rejets)} chiffre(s) introuvable(s) : {', '.join(rejets)} → réponse rejetée" if rejets
               else f"{len(trouves)}/{len(trouves)} chiffres retrouvés dans les traces · 0 rejet")
     tid = journal.log(titre=f"Vérification de fidélité · version {version}", agent="Vérificateur (code, sans LLM)",
