@@ -1,0 +1,26 @@
+{
+  "id": "robert",
+  "nom": "Robert",
+  "age": 59,
+  "metier": "Professionnel de la santé",
+  "risque": "faible_a_modere",
+  "horizon": "3 à 5 ans",
+  "capital": 200000,
+  "niveau_experience": "avance",
+  "objectif": "Préserver son capital tout en gardant un potentiel de croissance",
+  "preferences": [
+    "Entreprises établies et bien comprises",
+    "Stabilité et qualité",
+    "Peu intéressé par les cryptoactifs"
+  ],
+  "portefeuille_suppose": {
+    "XBB.TO": 0.3,
+    "ZST.TO": 0.3,
+    "XIU.TO": 0.15,
+    "SPY": 0.15,
+    "FTS.TO": 0.05,
+    "GLD": 0.05
+  },
+  "portefeuille_suppose_libelle": "60 % obligations (XBB, ZST), 30 % actions larges (XIU, SPY), 5 % Fortis, 5 % or",
+  "message_exemple": "J'ai 200 000 $ de côté pour ma retraite. Tout le monde parle de Tesla, je pense mettre 30 % dedans. Bonne idée ?"
+}

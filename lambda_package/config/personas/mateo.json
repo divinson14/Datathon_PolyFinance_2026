@@ -1,0 +1,27 @@
+{
+  "id": "mateo",
+  "nom": "Mateo",
+  "age": 41,
+  "metier": "Gestionnaire des opérations",
+  "risque": "modere",
+  "horizon": "8 à 12 ans",
+  "capital": 100000,
+  "niveau_experience": "intermediaire",
+  "objectif": "Croissance équilibrée à moyen et long terme",
+  "preferences": [
+    "Critères ESG importants",
+    "Évite les controverses",
+    "Peu de placements spéculatifs"
+  ],
+  "portefeuille_suppose": {
+    "ESGV": 0.3,
+    "XIU.TO": 0.25,
+    "XBB.TO": 0.3,
+    "ZST.TO": 0.05,
+    "FTS.TO": 0.05,
+    "GLD": 0.05
+  },
+  "portefeuille_suppose_libelle": "55 % actions larges dont 30 % filtrées ESG (ESGV), 35 % obligations, 5 % Fortis, 5 % or",
+  "message_exemple": "Je veux mettre 10 % de mon portefeuille dans Tesla, mais je tiens aux critères ESG.",
+  "exclusions_esg": true
+}

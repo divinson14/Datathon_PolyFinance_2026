@@ -3,6 +3,7 @@ local = fichier JSONL dans app/traces_locales/ ; dynamodb = table DynamoDB."""
 import json
 import os
 import uuid
+import pathlib
 from datetime import datetime, timezone
 
 from src.config import APP, TRACES
@@ -25,7 +26,8 @@ class Journal:
         if self._table is not None:
             self._table.put_item(Item={"session": self.session, "id": tid, **{k: str(v) for k, v in trace.items()}})
         else:
-            dossier = APP / "traces_locales"
+            base_path = pathlib.Path("/tmp") if os.getenv("AWS_LAMBDA_FUNCTION_NAME") else APP
+            dossier = base_path / "traces_locales"
             dossier.mkdir(exist_ok=True)
             with open(dossier / f"{self.session}.jsonl", "a", encoding="utf-8") as f:
                 f.write(json.dumps(trace, ensure_ascii=False) + "\n")
