@@ -1,4 +1,4 @@
-# app/ — l'application AlphaForge
+# app/ — l'application InvestIA
 
 ```
 config/      seuils, styles, personas → décidés par l'ÉQUIPE, jamais par le LLM
@@ -33,6 +33,7 @@ de règles, le vérificateur et les traces sont réels. Les données propres son
 si ce dossier est absent, l'application bascule sur des données **fictives** et l'affiche en rouge.
 
 ## Brancher AWS (dans cet ordre)
+
 1. `aws configure` (jamais de clé dans le code ni dans `.env`).
 2. Console Bedrock → activer l'accès aux modèles → copier les identifiants dans `.env`, puis `MODE=bedrock`.
 3. `DONNEES=s3` + `S3_BUCKET` une fois que `data/scripts/04_envoyer_s3.py` a tourné.
@@ -45,6 +46,7 @@ si ce dossier est absent, l'application bascule sur des données **fictives** et
    complétion et le plan de repli restent exécutés localement.
 
 ## Tests
+
 ```bash
 pytest tests/
 python tests/lancer_scenarios.py     # tableau à coller dans la documentation

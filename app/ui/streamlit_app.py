@@ -1,4 +1,4 @@
-"""Interface AlphaForge : 1) choix du profil, 2) « Mon compte » (KPI, positions, historique),
+"""Interface InvestIA : 1) choix du profil, 2) « Mon compte » (KPI, positions, historique),
 3) analyse (chat + coulisses en ligne de temps). Présentation seulement : la logique est dans src/.
 Lancer depuis app/ :  streamlit run ui/streamlit_app.py"""
 import os
@@ -52,7 +52,7 @@ etat.setdefault("question_en_cours", None)    # question en cours d'analyse : re
 def entete():
     """Marque + indicateur discret du mode (Bedrock ou démonstration hors ligne)."""
     g, d = st.columns([3, 2])
-    g.markdown("<div class='af-marque'>Alpha<span>Forge</span></div>", unsafe_allow_html=True)
+    g.markdown("<div class='af-marque'>Invest<span>IA</span></div>", unsafe_allow_html=True)
     if bedrock_client.actif():
         point, texte = COULEURS["vert"], f"Bedrock · {os.getenv('AWS_REGION', 'us-east-1')}"
     else:
