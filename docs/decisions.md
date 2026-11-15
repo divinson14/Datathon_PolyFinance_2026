@@ -26,6 +26,15 @@ Notez ici chaque choix au fil de l'eau : c'est la moitié de la documentation te
 - Correction des données : le report du taux de change se faisait sur la table longue (mélange possible entre symboles) ;
   il est maintenant fait sur le calendrier civil complet avant la fusion.
 - CNQ.TO : faux « split » 1,021 le 2022-08-22 (probable distribution spéciale) déjà intégré par Yahoo dans `adj_close`. Effet ≈ 2 %, non corrigé, documenté.
+  Mesure (audit du 2026-11-14) : ce jour-là `adj_close` fait +2,8 % contre +0,6 % pour `close` ; le dividende de 0,75 $
+  explique ≈ 1 point de l'écart, le reste (≈ 1 point) est l'artefact.
+- Fériés propres à une bourse : le calendrier est l'union TSX + NYSE ; un jour férié d'un seul côté donne un rendement
+  nul aux titres de l'autre place (report de la veille). Sans effet sur les mesures hebdomadaires ; pour la pire fenêtre
+  de 12 mois (quotidienne, 252 jours de bourse), la fenêtre couvre légèrement moins de 12 mois civils.
+- Macro : seule V39079 (taux directeur) est lue par l'application. Les séries BD.CDN.2YR, BD.CDN.10YR, DFF, DGS2 et DGS10
+  sont copiées dans `macro_quotidien.csv` mais **non utilisées** (piste : expliquer la baisse de XBB et TLT en 2022).
+- Toutes les mesures sont **en CAD** (effet de change inclus) : SPY 2022 = −18,2 % en USD mais −12,6 % en CAD.
+  Les traces de calcul, l'explication et l'interface le précisent.
 
 ## Seuils des gabarits (hypothèses de l'équipe, app/config/gabarits_risque.yaml)
 « Titre » = action individuelle ou crypto. Les FNB diversifiés ne sont pas soumis aux limites par titre.
@@ -56,19 +65,52 @@ Sortie : `data/processed/esg_drapeaux.csv` (via `02_construire_esg.py`). Sources
     un titre absent de ce top 40 (poids < 0,35 %) est considéré comme exclu.
   - XESG (iShares, fichier de l'émetteur au 2026-10-02) pour les 10 actions canadiennes, car ESGV ne détient que des
     actions américaines. XESG n'est pas dans l'univers ; il sert seulement de référence. `dans_fnb_esg` = « dans ESGV ou XESG ».
-- **Règle de controverse de l'équipe** (`raw/added/esg_controverses.csv`) : `oui` si secteur énergie (ENB.TO, CNQ.TO, XOM)
-  ou exclusion observée d'ESGV hors énergie (JNJ) ; `non` sinon. Résultat : 4 `oui`, 16 `non`.
-- **Ce qui n'est pas affirmé** : la raison de l'exclusion de JNJ n'est pas publiée par Vanguard et n'est pas devinée ;
-  l'exclusion elle-même est déduite du top 40, pas vérifiée dans la liste complète.
+- **Statuts ESG** (`raw/added/esg_controverses.csv`, colonne `controverse`, une ligne par actif de l'univers) :
+
+  | Statut | Actifs | Effet dans le moteur de règles |
+  |---|---|---|
+  | `oui` | ENB.TO, CNQ.TO, XOM | ❌ viole la règle « Exclusions ESG » |
+  | `non` | 16 actions (dont TSLA) | ✅ respecte la règle |
+  | `conforme` | ESGV (FNB filtré ESG) | ✅ comme `non` |
+  | `non applicable` | XBB.TO, ZST.TO, AGG, TLT, GLD | ➖ **neutre** : ni confirmé conforme, ni information manquante |
+  | `non évalué` | XIU.TO, SPY, QQQ, BTC-USD, ETH-USD, JNJ | ⚠️ information manquante, jamais déclaré conforme |
+
+  Colonne `motif` (pour les `oui`) : « secteur énergie (règle de l'équipe) » ou « exclu par ESGV (Vanguard) ».
+  Les 3 `oui` actuels relèvent tous de la règle énergie (XOM est en plus absente du top 40 d'ESGV).
+- **Règle « énergie = exclusion » (choix de l'équipe).** Tout titre du secteur Énergie (GICS) de l'univers est marqué
+  controverse importante, qu'il soit ou non détenu par un FNB ESG. Raison : l'énoncé demande d'exclure les entreprises
+  liées à des controverses environnementales importantes ; pipelines (ENB), sables bitumineux (CNQ) et pétrole intégré (XOM)
+  en sont l'exemple le plus défendable et le plus simple à expliquer. C'est une règle **sectorielle**, pas une évaluation
+  entreprise par entreprise : elle est stricte pour l'énergie et aveugle aux controverses des autres secteurs.
+- **Désaccord XESG / ESGV.** Les deux FNB de référence ne suivent pas la même logique :
+  - ESGV (Vanguard, indice FTSE US All Cap Choice) **exclut** l'énergie fossile et filtre la conduite des entreprises ;
+  - XESG (iShares, indice MSCI Canada ESG Focus) **pondère** selon les notes ESG MSCI **sans exclure** l'énergie :
+    ENB et CNQ y figurent.
+  Si l'on suivait XESG, ENB et CNQ seraient « sans controverse » ; si l'on suivait ESGV, elles seraient exclues. L'équipe
+  tranche par sa règle énergie (exclusion), cohérente avec ESGV. `dans_fnb_esg` (« dans ESGV ou XESG ») n'a donc pas le même
+  sens pour une action canadienne et pour une action américaine : il est affiché, mais le moteur ne s'en sert pas.
+- **JNJ : exclusion d'ESGV à vérifier dans la liste complète du fonds — sinon passer en "non évalué".**
+  Tentative du 2026-11-14 : la liste complète (https://investor.vanguard.com/investment-products/etfs/profile/esgv,
+  onglet Portfolio) est une page dynamique non consultable par l'outil ; seule piste trouvée, un article d'opinion
+  (https://seekingalpha.com/article/4707741-esgv-diversification-is-key-for-esg-investors) citant JNJ parmi les exclusions
+  par filtre de conduite — insuffisant. **JNJ est donc passée en « non évalué »** (motif retiré). À reprendre à la main :
+  télécharger la liste complète des titres d'ESGV et noter URL + date dans `sources_added.csv`.
+- Traçabilité : `esg_etf_holdings.csv` porte, pour chaque titre, le FNB de référence (`fnb` : ESGV ou XESG) et la date
+  du relevé de l'émetteur (`date_donnees`).
 - **Limites** :
   - règle simplifiée, sans revue détaillée par entreprise : elle ne capte pas les controverses sociales
     ou de gouvernance que les filtres ESGV/XESG ne reflètent pas ;
-  - méthodologies d'émetteurs différentes : XESG pondère selon les notes MSCI sans exclure l'énergie ; ESGV exclut ;
+  - méthodologies d'émetteurs différentes (voir le désaccord ci-dessus) ;
   - instantané 2026 appliqué à toute la période (biais d'anticipation).
 - **Conséquence pour Mateo** : TSLA est `non` (détenue par ESGV, hors énergie). Une évaluation ciblée de TSLA avec une
   source officielle datée reste une amélioration possible.
-- Le moteur ne vérifie l'ESG que pour les titres individuels (actions, crypto). Les FNB et la crypto restent « non évalué » dans
-  `esg_drapeaux.csv`. Un titre non évalué n'est **pas** déclaré conforme : il est signalé comme information manquante.
+- **Périmètre du moteur** (décision du 2026-11-14) : la règle « Exclusions ESG » s'applique à **tous les actifs détenus**,
+  FNB compris (avant : actions et crypto seulement). Raison : Mateo exclut les controverses mais son portefeuille supposé
+  contient 25 % de XIU.TO, qui détient ENB et CNQ ; ignorer les FNB revenait à valider en silence un actif non évalué.
+  Conséquence : chaque réponse à Mateo signale « non évalué : XIU.TO (portefeuille supposé) » comme **information manquante**
+  (⚠️, pas une violation) ; le statut, le point de bascule et les alternatives ne changent pas. Le libellé
+  « (portefeuille supposé) » indique que le manque ne vient pas de la demande. Les tensions de profil (Agent Gouvernance)
+  suivent le même périmètre.
 
 ## Agent Profil (app/src/agents/profil.py, config/profil.yaml, config/alias_actifs.yaml)
 - **Mandat JSON** = profil + gabarit + contraintes + horizon en années + informations manquantes + tensions + hypothèses + demande.
@@ -111,6 +153,8 @@ Sortie : `data/processed/esg_drapeaux.csv` (via `02_construire_esg.py`). Sources
 - 2026-11-14 — Trous dans les séries : report de la dernière valeur sur 3 jours de bourse au plus — les trous viennent
   des fériés propres à la TSX ou aux bourses américaines (27 jours par titre sur 5 ans) ; aucun trou plus long n'existe,
   donc aucune valeur inventée au-delà d'un congé — P1
+- 2026-11-14 — Audit des données (docs/audit_donnees.md) : aucun point bloquant ; bandeau « données fictives »,
+  test anti-repli (tests/test_donnees.py), mention CAD dans traces/explication/interface, limites documentées — P1
 - 2026-11-14 — Correction de `01_nettoyer_prix.py` : le report se fait maintenant APRÈS la réduction aux jours de bourse —
   avant, les fins de semaine (lignes crypto) comptaient dans la limite de 3 et les 13 titres `.TO` gardaient 3 trous
   (2021-12-28, 2022-12-27, 2023-12-26 : Noël TSX collé à un week-end). Résultat : 0 valeur manquante sur les 31 actifs — P1

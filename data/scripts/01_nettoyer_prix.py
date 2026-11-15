@@ -10,8 +10,9 @@ Choix documentés (à reporter dans docs/decisions.md) :
 - Calendrier de référence = jours où les actions/FNB cotent. La crypto, qui cote 7 j/7,
   est ramenée à ces dates (sinon les corrélations sont faussées).
 - Trous de 3 jours ouvrables au plus : report de la dernière valeur (ffill), consigné.
-- Conversion USD → CAD avec le taux de la Banque du Canada du même jour
-  (hypothèse : le taux est exprimé en CAD pour 1 USD — à vérifier dans sources_metadata.csv).
+- Conversion USD → CAD avec le taux de la Banque du Canada du même jour.
+  Sens vérifié le 2026-11-14 : usdcad = CAD pour 1 USD (entre 1,245 et 1,460 sur la période,
+  série FXUSDCAD de sources_metadata.csv) ; les prix en USD sont donc MULTIPLIÉS par ce taux.
 """
 import pandas as pd
 from commun import trouver_colonne, lire_csv, PROCESSED

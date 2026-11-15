@@ -1,21 +1,32 @@
-symbole,controverse,source,date_consultation,note
-RY.TO,non,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans XESG
-TD.TO,non,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans XESG
-MFC.TO,non,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans XESG
-ENB.TO,oui,Règle sectorielle de l'équipe,2026-11-14,Secteur énergie (pipelines); présente dans XESG malgré tout car XESG pondère sans exclure
-CNQ.TO,oui,Règle sectorielle de l'équipe,2026-11-14,Secteur énergie (sables bitumineux); présente dans XESG malgré tout car XESG pondère sans exclure
-CNR.TO,non,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans XESG
-FTS.TO,non,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans XESG
-ATD.TO,non,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans XESG
-SHOP.TO,non,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans XESG
-CSU.TO,non,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans XESG
-AAPL,non,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans ESGV
-MSFT,non,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans ESGV
-NVDA,non,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans ESGV
-GOOGL,non,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans ESGV
-AMZN,non,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans ESGV
-TSLA,non,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans ESGV malgré des controverses médiatisées
-JPM,non,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans ESGV
-JNJ,oui,Vanguard ESGV - Holding details (https://investor.vanguard.com/investment-products/etfs/profile/esgv),2026-11-14,Exclue d'ESGV au 12/11/2026 (hors secteur énergie); raison non publiée par Vanguard; absence déduite (hors des 40 premiers titres)
-PG,non,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans ESGV
-XOM,oui,Règle sectorielle de l'équipe + Vanguard ESGV,2026-11-14,Secteur énergie; exclue d'ESGV au 12/11/2026
+symbole,controverse,motif,source,date_consultation,note
+RY.TO,non,,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans XESG
+TD.TO,non,,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans XESG
+MFC.TO,non,,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans XESG
+ENB.TO,oui,secteur énergie (règle de l'équipe),Règle sectorielle de l'équipe,2026-11-14,Secteur énergie (pipelines); présente dans XESG malgré tout car XESG pondère sans exclure
+CNQ.TO,oui,secteur énergie (règle de l'équipe),Règle sectorielle de l'équipe,2026-11-14,Secteur énergie (sables bitumineux); présente dans XESG malgré tout car XESG pondère sans exclure
+CNR.TO,non,,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans XESG
+FTS.TO,non,,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans XESG
+ATD.TO,non,,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans XESG
+SHOP.TO,non,,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans XESG
+CSU.TO,non,,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans XESG
+AAPL,non,,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans ESGV
+MSFT,non,,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans ESGV
+NVDA,non,,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans ESGV
+GOOGL,non,,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans ESGV
+AMZN,non,,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans ESGV
+TSLA,non,,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans ESGV malgré des controverses médiatisées
+JPM,non,,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans ESGV
+JNJ,non évalué,,Vanguard ESGV - Holding details (https://investor.vanguard.com/investment-products/etfs/profile/esgv),2026-11-14,Exclusion d'ESGV non confirmée : liste complète des titres non consultable le 2026-11-14 (page dynamique); seule piste = article d'opinion Seeking Alpha (https://seekingalpha.com/article/4707741-esgv-diversification-is-key-for-esg-investors) qui cite JNJ parmi les exclusions par filtre de conduite; à vérifier dans la liste complète du fonds
+PG,non,,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans ESGV
+XOM,oui,secteur énergie (règle de l'équipe),Règle sectorielle de l'équipe + Vanguard ESGV,2026-11-14,Secteur énergie; exclue d'ESGV au 12/11/2026
+ESGV,conforme,,Vanguard ESGV (FNB filtré ESG; indice FTSE US All Cap Choice),2026-11-14,FNB filtré ESG : conforme par construction selon la méthodologie de l'émetteur
+XBB.TO,non applicable,,Règle de l'équipe,2026-11-14,FNB obligataire : pas de controverse d'entreprise à évaluer au sens de la règle
+ZST.TO,non applicable,,Règle de l'équipe,2026-11-14,FNB obligataire : pas de controverse d'entreprise à évaluer au sens de la règle
+AGG,non applicable,,Règle de l'équipe,2026-11-14,FNB obligataire : pas de controverse d'entreprise à évaluer au sens de la règle
+TLT,non applicable,,Règle de l'équipe,2026-11-14,FNB obligataire (bons du Trésor américain) : pas de controverse d'entreprise à évaluer au sens de la règle
+GLD,non applicable,,Règle de l'équipe,2026-11-14,FNB or physique : pas de controverse d'entreprise à évaluer au sens de la règle
+XIU.TO,non évalué,,Règle de l'équipe,2026-11-14,FNB actions non filtré ESG; contient des titres de l'énergie (ex. ENB et CNQ); composition non évaluée
+SPY,non évalué,,Règle de l'équipe,2026-11-14,FNB actions non filtré ESG; composition non évaluée
+QQQ,non évalué,,Règle de l'équipe,2026-11-14,FNB actions non filtré ESG; composition non évaluée
+BTC-USD,non évalué,,Règle de l'équipe,2026-11-14,Cryptoactif : aucune source ESG retenue (consommation énergétique non évaluée)
+ETH-USD,non évalué,,Règle de l'équipe,2026-11-14,Cryptoactif : aucune source ESG retenue

@@ -1,32 +1,32 @@
-symbole,nom,classe,secteur,dans_fnb_esg,controverse,source,date_consultation,note
-RY.TO,Royal Bank of Canada,equity,Financials,True,non,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans XESG
-TD.TO,Toronto-Dominion Bank,equity,Financials,True,non,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans XESG
-MFC.TO,Manulife Financial,equity,Financials,True,non,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans XESG
-ENB.TO,Enbridge,equity,Energy,True,oui,Règle sectorielle de l'équipe,2026-11-14,Secteur énergie (pipelines); présente dans XESG malgré tout car XESG pondère sans exclure
-CNQ.TO,Canadian Natural Resources,equity,Energy,True,oui,Règle sectorielle de l'équipe,2026-11-14,Secteur énergie (sables bitumineux); présente dans XESG malgré tout car XESG pondère sans exclure
-CNR.TO,Canadian National Railway,equity,Industrials,True,non,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans XESG
-FTS.TO,Fortis,equity,Utilities,True,non,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans XESG
-ATD.TO,Alimentation Couche-Tard,equity,Consumer Staples,True,non,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans XESG
-SHOP.TO,Shopify,equity,Information Technology,True,non,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans XESG
-CSU.TO,Constellation Software,equity,Information Technology,True,non,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans XESG
-AAPL,Apple,equity,Information Technology,True,non,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans ESGV
-MSFT,Microsoft,equity,Information Technology,True,non,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans ESGV
-NVDA,NVIDIA,equity,Information Technology,True,non,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans ESGV
-GOOGL,Alphabet (Class A),equity,Communication Services,True,non,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans ESGV
-AMZN,Amazon,equity,Consumer Discretionary,True,non,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans ESGV
-TSLA,Tesla,equity,Consumer Discretionary,True,non,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans ESGV malgré des controverses médiatisées
-JPM,JPMorgan Chase,equity,Financials,True,non,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans ESGV
-JNJ,Johnson & Johnson,equity,Health Care,False,oui,Vanguard ESGV - Holding details (https://investor.vanguard.com/investment-products/etfs/profile/esgv),2026-11-14,Exclue d'ESGV au 12/11/2026 (hors secteur énergie); raison non publiée par Vanguard; absence déduite (hors des 40 premiers titres)
-PG,Procter & Gamble,equity,Consumer Staples,True,non,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans ESGV
-XOM,Exxon Mobil,equity,Energy,False,oui,Règle sectorielle de l'équipe + Vanguard ESGV,2026-11-14,Secteur énergie; exclue d'ESGV au 12/11/2026
-XIU.TO,iShares S&P/TSX 60 Index ETF,etf_equity,Broad market (Canada),False,non évalué,,,
-SPY,SPDR S&P 500 ETF Trust,etf_equity,Broad market (U.S.),False,non évalué,,,
-QQQ,Invesco QQQ Trust (Nasdaq-100),etf_equity,Broad market (U.S. growth/tech-heavy),False,non évalué,,,
-ESGV,Vanguard ESG U.S. Stock ETF,etf_equity,"Broad market (U.S., ESG-screened)",False,non évalué,,,
-XBB.TO,iShares Core Canadian Universe Bond Index ETF,etf_bond,Bonds (Canada aggregate),False,non évalué,,,
-ZST.TO,BMO Ultra Short-Term Bond ETF,etf_bond,Bonds (Canada ultra short-term),False,non évalué,,,
-AGG,iShares Core U.S. Aggregate Bond ETF,etf_bond,Bonds (U.S. aggregate),False,non évalué,,,
-TLT,iShares 20+ Year Treasury Bond ETF,etf_bond,Bonds (U.S. long Treasury),False,non évalué,,,
-GLD,SPDR Gold Shares,etf_commodity,Gold,False,non évalué,,,
-BTC-USD,Bitcoin,crypto,Crypto asset,False,non évalué,,,
-ETH-USD,Ether,crypto,Crypto asset,False,non évalué,,,
+symbole,nom,classe,secteur,dans_fnb_esg,controverse,motif,source,date_consultation,note
+RY.TO,Royal Bank of Canada,equity,Financials,True,non,,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans XESG
+TD.TO,Toronto-Dominion Bank,equity,Financials,True,non,,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans XESG
+MFC.TO,Manulife Financial,equity,Financials,True,non,,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans XESG
+ENB.TO,Enbridge,equity,Energy,True,oui,secteur énergie (règle de l'équipe),Règle sectorielle de l'équipe,2026-11-14,Secteur énergie (pipelines); présente dans XESG malgré tout car XESG pondère sans exclure
+CNQ.TO,Canadian Natural Resources,equity,Energy,True,oui,secteur énergie (règle de l'équipe),Règle sectorielle de l'équipe,2026-11-14,Secteur énergie (sables bitumineux); présente dans XESG malgré tout car XESG pondère sans exclure
+CNR.TO,Canadian National Railway,equity,Industrials,True,non,,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans XESG
+FTS.TO,Fortis,equity,Utilities,True,non,,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans XESG
+ATD.TO,Alimentation Couche-Tard,equity,Consumer Staples,True,non,,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans XESG
+SHOP.TO,Shopify,equity,Information Technology,True,non,,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans XESG
+CSU.TO,Constellation Software,equity,Information Technology,True,non,,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans XESG
+AAPL,Apple,equity,Information Technology,True,non,,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans ESGV
+MSFT,Microsoft,equity,Information Technology,True,non,,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans ESGV
+NVDA,NVIDIA,equity,Information Technology,True,non,,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans ESGV
+GOOGL,Alphabet (Class A),equity,Communication Services,True,non,,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans ESGV
+AMZN,Amazon,equity,Consumer Discretionary,True,non,,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans ESGV
+TSLA,Tesla,equity,Consumer Discretionary,True,non,,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans ESGV malgré des controverses médiatisées
+JPM,JPMorgan Chase,equity,Financials,True,non,,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans ESGV
+JNJ,Johnson & Johnson,equity,Health Care,False,non évalué,,Vanguard ESGV - Holding details (https://investor.vanguard.com/investment-products/etfs/profile/esgv),2026-11-14,Exclusion d'ESGV non confirmée : liste complète des titres non consultable le 2026-11-14 (page dynamique); seule piste = article d'opinion Seeking Alpha (https://seekingalpha.com/article/4707741-esgv-diversification-is-key-for-esg-investors) qui cite JNJ parmi les exclusions par filtre de conduite; à vérifier dans la liste complète du fonds
+PG,Procter & Gamble,equity,Consumer Staples,True,non,,Règle sectorielle de l'équipe,2026-11-14,Aucune controverse selon la règle de l'équipe (ni secteur énergie ni exclusion ESGV); pas de revue détaillée; présente dans ESGV
+XOM,Exxon Mobil,equity,Energy,False,oui,secteur énergie (règle de l'équipe),Règle sectorielle de l'équipe + Vanguard ESGV,2026-11-14,Secteur énergie; exclue d'ESGV au 12/11/2026
+XIU.TO,iShares S&P/TSX 60 Index ETF,etf_equity,Broad market (Canada),False,non évalué,,Règle de l'équipe,2026-11-14,FNB actions non filtré ESG; contient des titres de l'énergie (ex. ENB et CNQ); composition non évaluée
+SPY,SPDR S&P 500 ETF Trust,etf_equity,Broad market (U.S.),False,non évalué,,Règle de l'équipe,2026-11-14,FNB actions non filtré ESG; composition non évaluée
+QQQ,Invesco QQQ Trust (Nasdaq-100),etf_equity,Broad market (U.S. growth/tech-heavy),False,non évalué,,Règle de l'équipe,2026-11-14,FNB actions non filtré ESG; composition non évaluée
+ESGV,Vanguard ESG U.S. Stock ETF,etf_equity,"Broad market (U.S., ESG-screened)",False,conforme,,Vanguard ESGV (FNB filtré ESG; indice FTSE US All Cap Choice),2026-11-14,FNB filtré ESG : conforme par construction selon la méthodologie de l'émetteur
+XBB.TO,iShares Core Canadian Universe Bond Index ETF,etf_bond,Bonds (Canada aggregate),False,non applicable,,Règle de l'équipe,2026-11-14,FNB obligataire : pas de controverse d'entreprise à évaluer au sens de la règle
+ZST.TO,BMO Ultra Short-Term Bond ETF,etf_bond,Bonds (Canada ultra short-term),False,non applicable,,Règle de l'équipe,2026-11-14,FNB obligataire : pas de controverse d'entreprise à évaluer au sens de la règle
+AGG,iShares Core U.S. Aggregate Bond ETF,etf_bond,Bonds (U.S. aggregate),False,non applicable,,Règle de l'équipe,2026-11-14,FNB obligataire : pas de controverse d'entreprise à évaluer au sens de la règle
+TLT,iShares 20+ Year Treasury Bond ETF,etf_bond,Bonds (U.S. long Treasury),False,non applicable,,Règle de l'équipe,2026-11-14,FNB obligataire (bons du Trésor américain) : pas de controverse d'entreprise à évaluer au sens de la règle
+GLD,SPDR Gold Shares,etf_commodity,Gold,False,non applicable,,Règle de l'équipe,2026-11-14,FNB or physique : pas de controverse d'entreprise à évaluer au sens de la règle
+BTC-USD,Bitcoin,crypto,Crypto asset,False,non évalué,,Règle de l'équipe,2026-11-14,Cryptoactif : aucune source ESG retenue (consommation énergétique non évaluée)
+ETH-USD,Ether,crypto,Crypto asset,False,non évalué,,Règle de l'équipe,2026-11-14,Cryptoactif : aucune source ESG retenue
