@@ -24,7 +24,7 @@ from src.regles.moteur import evaluer_regles
 from ui.composants import badge_etiquette, badge_trace, carte_kpi, carte_verdict, etape_timeline
 from ui.style import COULEURS, injecter_style
 
-st.set_page_config(page_title="AlphaForge", layout="wide")
+st.set_page_config(page_title="InvestIA", layout="wide")
 injecter_style()
 
 ORDRE_PERSONAS = ["robert", "amira", "mateo"]
