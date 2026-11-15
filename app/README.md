@@ -37,6 +37,11 @@ les données sont **fictives** (affiché sous chaque réponse).
 3. `DONNEES=s3` + `S3_BUCKET` une fois que `data/scripts/04_envoyer_s3.py` a tourné.
 4. Table DynamoDB `alphaforge-traces` (clé de partition `session`, clé de tri `id`) puis `TRACES=dynamodb`.
 5. Guardrail Bedrock (sujet refusé : exécuter des transactions / conseil personnalisé) → `BEDROCK_GUARDRAIL_ID`.
+6. Pour les calculs de l'Agent Analyste, renseigner `LAMBDA_OUTILS_URL` dans `.env` (exemple fourni dans `.env.example`).
+   L'appel HTTP est signé avec AWS IAM ; la Function URL doit utiliser `AWS_IAM` et le rôle de l'application
+   doit avoir `lambda:InvokeFunctionUrl` et `lambda:InvokeFunction`.
+   La Lambda doit avoir accès aux mêmes données et à la configuration de calcul nécessaires. Les calculs de
+   complétion et le plan de repli restent exécutés localement.
 
 ## Tests
 ```bash

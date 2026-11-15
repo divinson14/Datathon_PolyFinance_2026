@@ -87,6 +87,11 @@ def _creer_outils(journal, persona: dict, symbole: str, agent: str, libelle_de, 
     capital = persona["capital"]
     annee = config.CALCUL["annee_scenario"]
 
+    def calculer(outil: str, parametres: dict) -> dict:
+        if config.LAMBDA_OUTILS_URL:
+            return client_lambda.appeler_outil(journal, outil, parametres, agent)
+        return getattr(calculs, outil)(journal, agent=agent, **parametres)
+
     def poids_de(part_actif: float) -> dict:
         part_actif = float(part_actif)
         if not 0 <= part_actif <= 1:
@@ -104,7 +109,7 @@ def _creer_outils(journal, persona: dict, symbole: str, agent: str, libelle_de, 
             Identifiant de trace et valeurs formatées.
         """
         with collecte.verrou:
-            r = calculs.statistiques(journal, symbole, agent)
+            r = calculer("statistiques", {"symbole": symbole})
             noter("stats", None, symbole, r)
             return {"trace": r["trace"], "actif": symbole, "volatilite": pct(r["vol"]), "pire_baisse": pct(r["pire_baisse"])}
 
@@ -121,7 +126,9 @@ def _creer_outils(journal, persona: dict, symbole: str, agent: str, libelle_de, 
         """
         with collecte.verrou:
             lib = libelle_de(part_actif)
-            r = calculs.rejeu_2022(journal, poids_de(part_actif), capital, lib, agent)
+            r = calculer("rejeu_2022", {
+                "poids": poids_de(part_actif), "capital": capital, "libelle": lib,
+            })
             noter("rejeu", part_actif, lib, r)
             return {"trace": r["trace"], "portefeuille": lib, "annee": annee, "rendement": pct(r["rend"]),
                     "perte": money(r["perte"]), "valeur_finale": money(r["final"])}
@@ -140,7 +147,7 @@ def _creer_outils(journal, persona: dict, symbole: str, agent: str, libelle_de, 
         """
         with collecte.verrou:
             lib = libelle_de(part_actif)
-            r = calculs.analyse_portefeuille(journal, poids_de(part_actif), lib, agent)
+            r = calculer("analyse_portefeuille", {"poids": poids_de(part_actif), "libelle": lib})
             noter("mesures", part_actif, lib, r)
             return {"trace": r["trace"], "portefeuille": lib, "volatilite": pct(r["vol"]),
                     "pire_baisse": pct(r["pire_baisse"]),
@@ -161,7 +168,7 @@ def _creer_outils(journal, persona: dict, symbole: str, agent: str, libelle_de, 
         """
         with collecte.verrou:
             lib = libelle_de(part_actif)
-            r = calculs.pire_fenetre_12_mois(journal, poids_de(part_actif), lib, agent)
+            r = calculer("pire_fenetre_12_mois", {"poids": poids_de(part_actif), "libelle": lib})
             noter("fenetre", part_actif, lib, r)
             if r["rend"] is None:
                 return {"trace": r["trace"], "portefeuille": lib, "pire_rendement_12_mois": "historique trop court"}
@@ -177,7 +184,7 @@ def _creer_outils(journal, persona: dict, symbole: str, agent: str, libelle_de, 
             Identifiant de trace et résumé formaté.
         """
         with collecte.verrou:
-            r = calculs.contexte_macro(journal, agent)
+            r = calculer("contexte_macro", {})
             noter("macro", None, "taux", r)
             return {"trace": r["trace"], "resume": r["resume"] or "série indisponible"}
 
