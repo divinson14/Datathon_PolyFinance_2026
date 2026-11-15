@@ -93,3 +93,23 @@ def test_resume_gouvernance_avec_conseil_remplace_par_le_repli(monkeypatch):
     v = gouvernance.verifier(res["journal"], res["demande"], "TSLA", res["gabarit"], univers, "test", res["persona"])
     assert v["redaction"].startswith("code (repli") and "conseil" in v["redaction"]
     assert "recommande" not in v["resume"]
+
+
+def test_chiffre_invente_repete_jamais_accepte_au_controle_suivant(monkeypatch):
+    """Un chiffre rejeté est recopié dans la trace de rejet : il ne doit pas devenir « retrouvé » au contrôle suivant.
+    Le LLM répète le même chiffre inventé → régénération stricte rejetée aussi → gabarit sûr."""
+    res = executer("robert", "Je pense mettre 30 % dans Tesla.")
+
+    def faux_llm(*a, **k):
+        fiche = _fiche_llm_depuis_gabarit(res["contexte"])
+        fiche["lignes"][0]["texte"] += " Soit 42,7 % de hausse attendue."
+        return fiche
+
+    monkeypatch.setattr(bedrock_client, "actif", lambda: True)
+    monkeypatch.setattr(bedrock_client, "appeler_json", faux_llm)
+    reformuler(res, "inter")
+    assert res["verif"]["ok"] and "42,7" not in str(res["fiche"])
+    assert res["fiche"]["auteur"] == "gabarit"
+    controles = [t for t in res["journal"].traces if t.get("controle")]
+    assert controles and all(t["titre"].startswith(("Vérification", "Repli", "Formulation", "Part proposée"))
+                             for t in controles)

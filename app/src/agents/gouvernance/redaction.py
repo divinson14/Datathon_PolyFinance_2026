@@ -42,7 +42,8 @@ def _contexte(j: dict, persona: dict | None) -> dict:
 def _repli(journal, jugement: dict, raison: str) -> dict:
     journal.log(titre="Repli Gouvernance", agent="Agent Gouvernance", outil="formuler_verdict (LLM)",
                 entrees=f"statut calculé par le code : {jugement['statut']}",
-                sortie=f"{raison} → texte déterministe utilisé", source="code (repli.py)", periode="exécution courante")
+                sortie=f"{raison} → texte déterministe utilisé", source="code (repli.py)", periode="exécution courante",
+                controle=True)
     return {**repli.formuler(jugement), "auteur": f"code (repli : {raison})"}
 
 
@@ -101,5 +102,5 @@ def formuler(journal, jugement: dict, persona: dict | None) -> dict:
                 outil="chiffres_introuvables(formulation, traces)",
                 entrees=f"{len(trouves)} chiffre(s) extrait(s) de la formulation du LLM",
                 sortie=f"{len(trouves)}/{len(trouves)} retrouvés dans les traces · statut calculé par le code : {statut}{note}",
-                source="journal d'audit", periode="exécution courante")
+                source="journal d'audit", periode="exécution courante", controle=True)
     return {**sortie, "auteur": "llm"}

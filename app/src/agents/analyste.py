@@ -61,7 +61,7 @@ def _plan_fixe_alternative(journal, persona, symbole, part, agent) -> dict:
 def _tracer_repli(journal, agent: str, erreur: Exception) -> None:
     journal.log(titre="Repli sur le plan fixe", agent=agent, outil="Agent Strands (Amazon Bedrock)",
                 entrees="appel de l'agent Strands", sortie=f"erreur {type(erreur).__name__} : plan fixe utilisé",
-                source="orchestrateur", periode="—")
+                source="orchestrateur", periode="—", controle=True)
 
 
 # ---------- Outils Strands, créés par analyse ----------
@@ -324,7 +324,7 @@ def analyser_alternative(journal, persona: dict, symbole: str, part: float, tent
         journal.log(titre="Part proposée par le modèle écartée", agent=agent + COMPLETE, outil="lecture de PART=",
                     entrees=f"PART lu : {'illisible' if proposee is None else proposee} · part précédente {pct(plafond)}",
                     sortie=f"part de repli retenue : {pct(part)} (gouvernance.prochaine_part)",
-                    source="orchestrateur", periode="—")
+                    source="orchestrateur", periode="—", controle=True)
 
     poids = calculs.poids_avec_position(persona["portefeuille_suppose"], symbole, choisie)
     lib, ac = libelle_de(choisie), agent + COMPLETE

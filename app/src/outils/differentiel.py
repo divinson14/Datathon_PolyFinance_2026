@@ -27,8 +27,11 @@ def _vue(r: dict) -> dict:
     b = d["bascule"]
     vue = {"Gabarit de tolérance": f"« {g['label']} »", "Horizon": r["mandat"]["profil"]["horizon"]}
     vue.update({libelle: _limite(g, cle) for cle, libelle in LIMITES})
+    m, s = d["mesures"], r["mandat"]["demande"]["symbole"]
     vue.update({
         "Part demandée": pct(r["mandat"]["demande"]["part"]),
+        "Part du risque portée par l'actif demandé": f"{s} {pct(m['parts_risque'].get(s, 0.0))}",
+        "Volatilité / pire baisse de la demande": f"{pct(m['vol'])} / {pct(m['pire_baisse'])}",
         "Règles violées par la demande": (", ".join(x["regle"] for x in verd["violees"]) if verd["violees"] else "aucune"),
         "Facteur limitant (1re règle franchie)": (b["limitantes"][0] if b["limitantes"] else "aucun"),
         "Point de bascule": (pct(b["part_max"]) if b["base_conforme"] and b["part_max"] is not None

@@ -138,3 +138,49 @@ def test_differentiel_moitie_moins(robert):
     d = _diff(r)
     assert d["Part demandée"]["avant"] == "30 %" and d["Part demandée"]["apres"] == "15 %"
     assert not d["Gabarit de tolérance"]["change"] and not d["Point de bascule"]["change"]
+
+
+# ---------- Explication « Et si » (gabarit) : étiquetée, vérifiée ----------
+
+def _texte(fiche):
+    return " ".join([fiche["intro"], *[l["texte"] for l in fiche["lignes"]], fiche["limites"]])
+
+
+@pytest.mark.parametrize("parametre, valeur", [("tolerance", "modere"), ("part", 0.15), ("horizon", 10)])
+def test_explication_scenario_fictif_cad_et_verifiee(robert, parametre, valeur):
+    from src.agents.explicabilite import MENTION_CAD
+    r = et_si(robert, parametre, valeur)
+    f = r["fiche"]
+    assert f["lignes"] and all(l["tag"] == "Scénario fictif" for l in f["lignes"])
+    assert all(r["differentiel"]["trace"] in l["traces"] for l in f["lignes"])
+    assert MENTION_CAD in f["limites"] and r["verif"]["ok"]
+
+
+def test_explication_horizon_dit_que_les_limites_dependent_de_la_tolerance(robert):
+    texte = _texte(et_si(robert, "horizon", 10)["fiche"])
+    assert "dépendent de votre tolérance, pas de votre horizon" in texte
+    assert "Aucune tension" in texte
+
+
+def test_explication_tension_retiree_profil_saisi():
+    saisie = {"age": 30, "tolerance": "eleve", "horizon_ans": 3, "objectif": "croissance", "esg": False}
+    res = executer(None, "Je pense mettre 10 % dans Tesla.", profil_saisi=saisie)
+    f = et_si(res, "horizon", 10)["fiche"]
+    texte = _texte(f)
+    assert "dépendent de ta tolérance, pas de ton horizon" in texte
+    assert "La tension signalée sur le profil disparaît" in texte
+
+
+def test_chiffre_invente_dans_l_explication_et_si_repli_sur_le_gabarit(robert, monkeypatch):
+    from src.agents import explicabilite
+
+    def avec_chiffre_invente(contexte, journal, style, strict=False):
+        f = explicabilite.gabarit_et_si(contexte, style)
+        f["lignes"].append({"tag": "Scénario fictif", "texte": "La perte serait de 42,7 %.", "traces": []})
+        f["auteur"] = "faux rédacteur"
+        return f
+    monkeypatch.setattr(explicabilite, "rediger_et_si", avec_chiffre_invente)
+    r = et_si(robert, "tolerance", "modere")
+    rejets = [e for e in r["etapes"] if e["agent"] == "Vérificateur de fidélité" and e["statut"] == "fail"]
+    assert rejets and "42,7" in rejets[0]["note"]
+    assert r["verif"]["ok"] and r["fiche"]["auteur"] == "gabarit (Et si)" and "42,7" not in _texte(r["fiche"])

@@ -167,11 +167,14 @@ def _analyser(journal, etapes: list, etape, mandat: dict, symbole: str, part: fl
             "verif": verif, "contexte": contexte, "source_donnees": source, "mandat": mandat, "autorise": autorise}
 
 
-def rediger_verifie(contexte: dict, journal, style: str, autorise: str, etape):
+def rediger_verifie(contexte: dict, journal, style: str, autorise: str, etape, rediger=None, gabarit=None):
     """Rédaction + vérificateur de fidélité, avec régénération stricte puis gabarit sûr en dernier recours.
-    AUCUN texte n'est affiché sans être passé par ici."""
+    AUCUN texte n'est affiché sans être passé par ici.
+    `rediger` / `gabarit` : variantes « Et si » (même contrat que explicabilite.rediger / _gabarit_texte)."""
+    rediger = rediger or explicabilite.rediger
+    gabarit = gabarit or explicabilite._gabarit_texte
     niveau = "avancé" if style == "avance" else "intermédiaire"
-    fiche = explicabilite.rediger(contexte, journal, style)
+    fiche = rediger(contexte, journal, style)
     etape("Agent Explicabilité", "ok", f"Réponse rédigée au niveau « {niveau} »"
           + (" par le LLM" if fiche.get("auteur") == "llm" else f" ({fiche.get('auteur', 'gabarit')})"),
           note=f"{len(fiche['lignes'])} affirmations étiquetées (Fait / Hypothèse / Scénario fictif), reliées à leurs traces.")
@@ -180,10 +183,10 @@ def rediger_verifie(contexte: dict, journal, style: str, autorise: str, etape):
     if not verif["ok"]:
         etape("Vérificateur de fidélité", "fail", "Réponse rejetée → régénération en mode strict",
               note=verif["motif"] + ".", trace=verif["trace"])
-        fiche = explicabilite.rediger(contexte, journal, style, strict=True)
+        fiche = rediger(contexte, journal, style, strict=True)
         verif = fidelite.verifier(journal, fiche, autorise, version + 1)
         if not verif["ok"]:                     # dernier recours : gabarit sûr
-            fiche = explicabilite._gabarit_texte(contexte, style)
+            fiche = gabarit(contexte, style)
             verif = fidelite.verifier(journal, fiche, autorise, version + 2)
     etape("Vérificateur de fidélité", "ok" if verif["ok"] else "fail", "Réponse validée" if verif["ok"] else "Réponse non validée",
           note=f"{verif['total']}/{verif['total']} chiffres retrouvés dans les traces." if verif["ok"] else "", trace=verif["trace"])
@@ -285,7 +288,8 @@ def et_si(res: dict, parametre: str, valeur, on_etape=None) -> dict:
         etape("Orchestrateur", "ok", f"Différentiel avant / après calculé par le code · {len(diff['changements'])} "
               "élément(s) modifié(s)", trace=diff["trace"],
               note=("Modifié : " + ", ".join(diff["changements"]) + ".") if diff["changements"] else "Aucun élément modifié.")
-        return rediger_verifie(contexte, journal, style, autorise, etape)
+        return rediger_verifie(contexte, journal, style, autorise, etape,
+                               rediger=explicabilite.rediger_et_si, gabarit=explicabilite.gabarit_et_si)
 
     nouveau = _analyser(journal, etapes, etape, mandat, symbole, part, univers, source, res["fiche"]["style"],
                         redacteur=rediger_et_si)

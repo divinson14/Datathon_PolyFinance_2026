@@ -23,8 +23,10 @@ def _sans_accents(texte: str) -> str:
 
 
 def chiffres_introuvables(journal, texte: str, contexte_autorise: str) -> tuple[list[str], list[str]]:
-    """(chiffres trouvés dans `texte`, chiffres absents des traces et du contexte autorisé). Pure : aucune trace."""
-    corpus = " ".join(f"{t['entrees']} {t['sortie']}" for t in journal.traces) + " " + contexte_autorise
+    """(chiffres trouvés dans `texte`, chiffres absents des traces et du contexte autorisé). Pure : aucune trace.
+    Les traces de CONTRÔLE (controle=True : vérifications, replis, propositions écartées) ne servent jamais de
+    source : sinon un chiffre rejeté, recopié dans la trace de rejet, deviendrait « retrouvé » au contrôle suivant."""
+    corpus = " ".join(f"{t['entrees']} {t['sortie']}" for t in journal.traces if not t.get("controle")) + " " + contexte_autorise
     autorises = {_norm(n) for n in NUM_RE.findall(corpus)}
     trouves = NUM_RE.findall(texte)
     return trouves, [n for n in trouves if _norm(n) not in autorises]
@@ -51,6 +53,7 @@ def verifier(journal, fiche: dict, contexte_autorise: str, version: int) -> dict
     tid = journal.log(titre=f"Vérification de fidélité · version {version}", agent="Vérificateur (code, sans LLM)",
                       outil="verifier_fidelite(reponse, traces, garde_fous)",
                       entrees=f"{len(trouves)} chiffres extraits de la réponse",
-                      sortie=sortie, source="journal d'audit · config/garde_fous.yaml", periode="exécution courante")
+                      sortie=sortie, source="journal d'audit · config/garde_fous.yaml", periode="exécution courante",
+                      controle=True)
     return {"trace": tid, "ok": not rejets and not conseils, "total": len(trouves), "rejets": rejets,
             "conseils": conseils, "motif": " · ".join(morceaux)}
