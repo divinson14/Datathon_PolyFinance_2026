@@ -1,50 +1,48 @@
 # InvestIA
-**On ne vous dit pas quoi acheter. On vous montre où votre décision cesse d'être cohérente avec vous.**
+**On ne vous dit pas quoi acheter. On vous montre jusqu'où votre décision reste cohérente avec vous.**
 
-**Le problème.** Robert, 59 ans, profil prudent, veut mettre 30 % de son portefeuille dans Tesla. Il pense
-engager 30 % de ses dollars ; en réalité, il y placerait **89,5 % de son risque**. Les investisseurs raisonnent
-en dollars, alors que leur portefeuille réagit au risque. Personne ne leur montre l'écart, ni où il devient
-incohérent avec leur profil.
+**Le problème.** On pense en dollars, mais un portefeuille réagit au risque. Mettre une part de son argent dans un
+titre très volatil, c'est souvent lui confier la plus grande partie des hauts et des bas de tout son portefeuille :
+pour un investisseur prudent, **30 % en Tesla, c'est près de 90 % du risque**. Prudent, équilibré ou audacieux,
+personne ne voit cet écart, ni le moment où sa décision ne lui correspond plus.
 
-**Notre réponse : le point de bascule.** Pour toute demande en langage courant (« je pense mettre 30 % dans
-Tesla »), InvestIA  calcule **la part maximale compatible avec le profil** et la règle qui casse en premier.
-Robert : **3 %**. Amira (profil élevé) : **13 %**. Mateo (modéré, ESG) : **6 %**. Même question, trois limites,
-et jamais « tout est permis » parce que le profil est audacieux.
+**Notre solution.** On pose sa question comme à une personne : « Je pense mettre 30 % dans Tesla ». InvestIA répond
+en quelques secondes : est-ce cohérent avec mon profil ? Sinon, **jusqu'où ça le serait** (le *point de bascule*) et
+quelle limite casse en premier. Même question, trois profils : prudent **3 %**, équilibré **6 %**, audacieux **13 %**.
 
-**L'approche agentique (le code juge, le LLM comprend et rédige, le code vérifie).**
-- **Agent Profil** (Claude Haiku) : construit le mandat ; ne déduit jamais la tolérance au risque ; signale ce qui manque.
-- **Agent Analyste** (Claude Sonnet, agent Strands) : choisit ses outils de calcul ; tous les chiffres viennent des outils.
-- **Agent Gouvernance** : le moteur de règles (code) juge le mandat ; le LLM formule le verdict et les tensions avec le profil.
-- **Agent Explicabilité** (Claude Sonnet) : 4 à 6 affirmations étiquetées *Fait · Hypothèse · Scénario fictif*.
-- **Vérificateur de fidélité** (code pur) : chaque chiffre du texte doit exister dans une trace, et aucune formulation
-  de conseil n'est tolérée ; sinon la réponse est régénérée.
+**Comment ça marche : 4 agents IA et un vérificateur.**
+- **Profil** : comprend la question et le profil ; ne devine jamais une information manquante, il la demande.
+- **Analyste** : fait les calculs. Les chiffres viennent toujours des calculs, jamais de l'IA.
+- **Gouvernance** : compare la demande aux limites du profil et ose dire non, même à un profil audacieux.
+- **Explicabilité** : explique en langage simple, en séparant les faits, les hypothèses et les scénarios.
+- **Vérificateur** : relit chaque réponse. Un chiffre qui ne vient pas d'un calcul, ou un conseil déguisé, et la
+  réponse est réécrite.
 
-**Ce qui est original.** (1) Mesurer **la part du risque**, pas la part des dollars, et la montrer en une image : la
-*courbe de bascule*. (2) **Zéro chiffre inventé, zéro conseil déguisé**, garantis par du code, pas par une consigne
-au LLM. (3) **Un système qui ose dire non** : il nuance, il refuse, il relève les tensions (« entreprises établies »
-contre une volatilité de 55,7 %), sans jamais céder à une hypothèse plus favorable.
+**Ce qui est original.**
+- On mesure **la part du risque**, pas la part des dollars, et on la montre en une image : la courbe de bascule.
+- **Aucun chiffre inventé, aucun conseil** : ce n'est pas une promesse, c'est vérifié automatiquement à chaque réponse.
+- Un assistant qui sait **dire non** et explique pourquoi, au lieu d'approuver la demande.
 
-**Données.** 31 actifs (actions canadiennes et américaines, FNB, obligations, or, cryptoactifs), 5 ans de prix
-quotidiens (Yahoo Finance, prix ajustés), **tout en CAD** au taux de la Banque du Canada ; taux directeur
-(Banque du Canada), sans jamais utiliser une donnée publiée après la date simulée. **ESG : version partielle**,
-assumée : règle sectorielle et fonds ESG (ESGV, XESG), sans revue des controverses sociales ; ce qui n'est pas
-évalué est signalé « à vérifier », jamais déclaré conforme.
-Seuils des profils : hypothèses de l'équipe, affichées comme telles.
+**Les données.** 31 placements (actions canadiennes et américaines, fonds indiciels, obligations, or,
+cryptomonnaies), 5 ans de prix réels (Yahoo Finance), tout converti en **dollars canadiens** au taux de la Banque du
+Canada, sans jamais utiliser une information publiée plus tard. **ESG : version partielle**, assumée : une règle
+simple (secteur de l'énergie) et les fonds ESG ; ce qui n'est pas évalué est marqué « à vérifier », jamais
+« conforme ». Les limites de chaque profil sont des hypothèses de l'équipe, affichées comme telles.
 
-**Explicabilité vérifiable.** Chaque étape écrit une trace horodatée (entrées, sortie, source), stockée dans
-**Amazon DynamoDB** : chaque chiffre de la réponse renvoie à son calcul, consultable en un clic.
+**Chaque réponse se justifie.** Chaque chiffre a sa preuve : un clic montre le calcul, les données utilisées et leur
+source. Tout est enregistré sur AWS (Amazon DynamoDB), consultable après coup.
 
-**Sur AWS.** Amazon Bedrock (Claude Haiku et Sonnet, Strands) · **Bedrock Guardrails** (aucune transaction réelle,
-aucun conseil personnalisé, en entrée et en sortie) · Amazon S3 (données) · Amazon DynamoDB (journal d'audit) ·
-AWS Lambda (outils de calcul). <!-- ÉQUIPE : confirmer que la fonction Lambda est déployée, sinon retirer. -->
+**Sur AWS.** Amazon Bedrock (modèles Claude) pour les agents · Bedrock Guardrails pour bloquer les transactions
+réelles et les promesses de rendement · AWS Lambda pour les calculs · Amazon S3 pour les données · Amazon DynamoDB
+pour l'historique des preuves.
 
-**Le bénéfice.** Pour l'investisseur : comprendre en dix secondes *pourquoi* une idée ne lui convient pas, et
-jusqu'où elle lui conviendrait. Pour la banque : une analyse de **convenance** expliquée, tracée et auditable,
-prête à être partagée par un conseiller.
+**Le bénéfice.** Pour l'investisseur : comprendre en dix secondes **pourquoi** une idée ne lui convient pas, et
+**jusqu'où** elle lui conviendrait. Pour la banque : une vérification de convenance expliquée et traçable, qu'un
+conseiller peut partager telle quelle.
 
-**Et ensuite ?** Plusieurs portefeuilles et plusieurs actifs dans une même demande, un horizon qui ajuste les limites
-(« et si mon horizon était de 10 ans ? »), une marge d'incertitude sur le point de bascule, un mode conseiller…
-La suite, nous aimerions la construire avec vous.
+**Et ensuite ?** Plusieurs placements dans une même question, un horizon de placement qui ajuste les limites
+(« et sur 10 ans ? »), un agent qui relit le sens des réponses, un mode conseiller… La suite, nous aimerions la
+construire avec vous.
 
-<sub>Simulation éducative sur des profils fictifs ; aucune transaction réelle, aucun conseil financier personnalisé.
+<sub>Simulation éducative sur des profils fictifs : aucune transaction réelle, aucun conseil financier personnalisé.
 Les performances passées ne prédisent pas les résultats futurs.</sub>
