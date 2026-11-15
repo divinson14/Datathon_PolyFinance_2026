@@ -31,11 +31,35 @@ _DEMO = [("XIU.TO", "FNB actions canadiennes", "etf_equity", "CAD", "Broad marke
          ("ETH-USD", "Ether", "crypto", "USD", "Crypto asset", 0.70, 0.15, 0.5)]
 
 
+class DonneesS3Indisponibles(RuntimeError):
+    """S3 demandé (DONNEES=s3) mais illisible. On s'arrête : jamais de repli silencieux vers le fictif."""
+
+
+def _emplacement_s3() -> str:
+    return f"s3://{os.getenv('S3_BUCKET', '?')}/{os.getenv('S3_PREFIX', 'processed/')}"
+
+
 def _lire(nom: str) -> pd.DataFrame:
     if DONNEES == "s3":
         import boto3
-        s3 = boto3.client("s3", region_name=os.getenv("AWS_REGION", "us-east-1"))
-        obj = s3.get_object(Bucket=os.environ["S3_BUCKET"], Key=os.getenv("S3_PREFIX", "processed/") + nom)
+        from botocore.exceptions import BotoCoreError, ClientError, NoCredentialsError
+        bucket = os.getenv("S3_BUCKET")
+        if not bucket:
+            raise DonneesS3Indisponibles("DONNEES=s3 mais S3_BUCKET est vide dans app/.env.")
+        cle = os.getenv("S3_PREFIX", "processed/") + nom
+        try:
+            s3 = boto3.client("s3", region_name=os.getenv("AWS_REGION", "us-east-1"))
+            obj = s3.get_object(Bucket=bucket, Key=cle)
+        except NoCredentialsError as e:
+            raise DonneesS3Indisponibles(
+                "Identifiants AWS absents : collez ceux du Workshop dans le terminal ou app/.env.") from e
+        except ClientError as e:
+            code = e.response.get("Error", {}).get("Code", "?")
+            raise DonneesS3Indisponibles(
+                f"Lecture impossible de s3://{bucket}/{cle} ({code}) : bucket introuvable, fichier absent "
+                f"(relancer data/scripts/04_envoyer_s3.py) ou accès refusé / identifiants expirés.") from e
+        except BotoCoreError as e:
+            raise DonneesS3Indisponibles(f"Erreur AWS en lisant s3://{bucket}/{cle} : {e}") from e
         return pd.read_csv(io.BytesIO(obj["Body"].read()))
     return pd.read_csv(DOSSIER_LOCAL / nom)
 
@@ -75,7 +99,8 @@ def charger():
     prix["date"] = pd.to_datetime(prix["date"])
     prix = prix.set_index("date").sort_index()
     univers = _lire("univers_enrichi.csv")
-    return prix, univers, "data/processed/prix_cad_alignes.csv (clôture ajustée, en CAD)"
+    dossier = _emplacement_s3() if DONNEES == "s3" else "data/processed/"
+    return prix, univers, f"{dossier}prix_cad_alignes.csv (clôture ajustée, en CAD)"
 
 
 def donnees_fictives() -> bool:
@@ -90,7 +115,7 @@ def charger_macro() -> pd.DataFrame | None:
         return None
     try:
         macro = _lire("macro_quotidien.csv")
-    except Exception:                       # fichier absent (local) ou clé absente (S3)
+    except FileNotFoundError:               # local seulement ; en S3 l'erreur claire remonte
         return None
     macro["date"] = pd.to_datetime(macro["date"])
     return macro
@@ -103,5 +128,5 @@ def charger_esg() -> pd.DataFrame | None:
         return None
     try:
         return _lire("esg_drapeaux.csv")
-    except Exception:
+    except FileNotFoundError:               # local seulement ; en S3 l'erreur claire remonte
         return None
