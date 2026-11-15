@@ -139,7 +139,7 @@ python tests/lancer_scenarios.py    # scénarios piégés : tableau prêt pour l
 | `app/src/traces/` | Journal d'audit (fichiers locaux ou DynamoDB) |
 | `app/config/` | Seuils des profils, personas, garde-fous : hypothèses de l'équipe |
 | `app/ui/` | Interface Streamlit · `app/lambda/` : handler AWS Lambda |
-| `data/` | Préparation des données · `docs/` : documentation, décisions, one-pager, script vidéo |
+| `data/` | Préparation des données · `docs/` : documentation, décisions, one-pager, livrables PDF |
 
 ## Limites assumées
 Cinq ans de données (un seul cycle de taux) et biais du survivant ; seuils des profils = hypothèses documentées ;
