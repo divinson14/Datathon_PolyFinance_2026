@@ -99,6 +99,34 @@ Les seuils ne sont pas codés en dur dans les fonctions de logique ; ils sont ex
 - Amazon S3 pour les données nettoyées ;
 - Bedrock Guardrails pour les contrôles de sécurité.
 
+### Utilisation d'AWS : un rôle précis pour chaque service
+Tous les services sont dans la région **us-east-1**. Le principe : **AWS exécute, stocke et contrôle ; le code garde la
+décision**. Chaque service a un rôle unique, et chaque panne a un repli visible au lieu d'un plantage.
+
+| Service | Rôle dans InvestIA | Configuration réelle | Pourquoi ce choix |
+|---|---|---|---|
+| **Amazon Bedrock** (API Converse) | Faire tourner les 4 agents | Claude Haiku 5.5 (Agent Profil) ; Claude Sonnet 5.5 (Analyste, Gouvernance, Explicabilité) ; un seul point d'appel dans le code (`bedrock_client.py`) | Modèles managés, sans serveur à gérer ; un petit modèle rapide là où la tâche est simple, un modèle plus fiable là où il faut rédiger sans déformer les chiffres |
+| **Strands Agents** sur Bedrock | Laisser l'Agent Analyste choisir ses outils de calcul | Outils déclarés au modèle ; repli automatique sur un plan fixe si l'agent échoue | Démarche réellement agentique, sans perdre le contrôle des chiffres |
+| **Bedrock Guardrails** | Filtrer ce qui entre et ce qui sort | Guardrail `7xq7ledpn2cm` ; sujets « Transaction réelle » et « Promesse de rendement » : détection sur la demande, **blocage sur la réponse affichée** | Filet de sécurité AWS indépendant des agents ; chaque intervention laisse une trace de contrôle |
+| **AWS Lambda** (Function URL) | Exécuter les outils de calcul de l'Analyste (part du risque, rejeu 2022, volatilité, stress-test) | Authentification **AWS_IAM** : chaque appel est signé (SigV4) par l'application | Calculs isolés de l'interface et appelables à la demande ; aucune URL publique non authentifiée |
+| **Amazon S3** | Stocker les données propres (prix en CAD, macro, ESG) | Bucket privé `alphaforge-donnees-at2026`, accès public bloqué, chiffrement SSE-S3 ; lecture seule par l'application ; **manifeste** d'empreintes SHA-256 vérifié à chaque lecture | Une source unique et versionnée pour toute l'équipe ; chaque chiffre est relié au jeu de données exact |
+| **Amazon DynamoDB** | Conserver le journal d'audit | Table `alphaforge-traces` (clé de partition `session`, clé de tri `id`) : une ligne par calcul, verdict, vérification et contrôle Guardrails | Les preuves restent consultables après coup, hors de l'application : c'est la base de l'auto-explicabilité |
+
+**Parcours d'une demande sur AWS.** Le message passe par Bedrock Guardrails (entrée), puis l'Agent Profil (Bedrock,
+Haiku) construit le mandat. L'Agent Analyste (Bedrock, Sonnet, Strands) appelle les outils sur Lambda, qui lisent les
+données de S3. La Gouvernance (moteur de règles en code, formulation par Sonnet) juge, puis l'Explicabilité (Sonnet)
+rédige. Le vérificateur (code) contrôle, puis Bedrock Guardrails (sortie) filtre la réponse. À chaque étape, une trace
+est écrite dans DynamoDB.
+
+**Sécurité.** Aucune clé AWS dans le code ni dans git : identifiants temporaires dans le terminal, ou rôle IAM.
+Données privées et chiffrées, lecture seule côté application. Aucune transaction réelle n'est possible : il n'existe
+aucune connexion à un système de courtage.
+
+**Résilience.** Identifiants expirés, modèle refusé, réponse tronquée, Lambda ou DynamoDB indisponible : chaque cas
+bascule sur un repli déterministe (gabarit, plan fixe, fichier local de traces) et **le motif est affiché** à
+l'utilisateur. Une trace n'est jamais perdue. Seule la lecture des données dans S3 s'arrête avec un message clair plutôt
+que d'utiliser d'autres données en silence.
+
 La logique de protection est implémentée en code pur dans `app/src/regles/` et `app/src/verif/`, avec des règles explicites sur :
 - l'absence de conseil financier personnalisé ;
 - l'absence de transaction réelle ;
