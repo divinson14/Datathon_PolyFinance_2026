@@ -9,7 +9,7 @@ from src.verif import fidelite, guardrails
 
 
 def executer(persona_id: str | None, message: str, style: str | None = None, on_etape=None, memoire: dict | None = None,
-             profil_saisi: dict | None = None) -> dict:
+             profil_saisi: dict | None = None, en_attente: dict | None = None) -> dict:
     """persona_id = persona de référence ; OU profil_saisi = 5 champs (age, tolerance, horizon_ans, objectif, esg[, capital])."""
     prix, univers, source = charger()
     journal = Journal()
@@ -58,7 +58,7 @@ def executer(persona_id: str | None, message: str, style: str | None = None, on_
         etape("Agent Profil", "warn", mandat["question"], trace=mandat["trace"],
               note="Information manquante : " + ", ".join(mandat["informations_manquantes"]) + ". Le système ne la devine pas.")
         return arret()
-    dem = profil.extraire(message, persona, univers, journal, memoire)
+    dem = profil.extraire(message, persona, univers, journal, memoire, en_attente)
     mandat["demande"] = {k: dem[k] for k in ("symbole", "part", "symboles_mentionnes", "informations_manquantes", "methode", "trace")}
     if dem["informations_manquantes"]:
         etape("Agent Profil", "warn", dem["question"], trace=dem["trace"],
@@ -69,13 +69,15 @@ def executer(persona_id: str | None, message: str, style: str | None = None, on_
     seuils = (f"poids max/titre {pct(g['poids_max_par_titre'])} · part du risque max/titre {pct(g['part_risque_max_par_titre'])} · "
               f"vol. max {pct(g['volatilite_max'])} · pire baisse max {pct(g['pire_baisse_max'])} · "
               f"obligations min {pct(g['obligations_min'])} · crypto max {pct(g['crypto_max'])}")
-    remarques = ([f"Tension : {t}." for t in mandat["tensions"]]
+    remarques = ([f"Complété à partir du message précédent : {', '.join(dem['completes'])}."] * bool(dem.get("completes"))
+                 + [f"Tension : {t}." for t in mandat["tensions"]]
                  + [f"Information manquante : {', '.join(mandat['informations_manquantes'])}."] * bool(mandat["informations_manquantes"]))
     etape("Agent Profil", "warn", "Mandat construit et demande comprise · les hypothèses sont affichées"
           + (f" · {len(mandat['tensions'])} tension(s) dans le profil" if mandat["tensions"] else ""),
           trace=mandat["trace"], note=" ".join(remarques) or None,
           mandat=[("Actif demandé", symbole), ("Part demandée", pct(part) + (f" (= {dem['lecture']['extrait']})" if dem["lecture"]["type"] == "montant" else "")),
                   ("Lecture de la demande", dem["methode"]),
+                  *([("Complété à partir du message précédent", ", ".join(dem["completes"]))] if dem.get("completes") else []),
                   *([("Repris de l'échange précédent", ", ".join(dem["reprises"]))] if dem.get("reprises") else []),
                   ("Gabarit appliqué", f"« {g['label']} » (config/)"),
                   ("Seuils (hypothèses de l'équipe)", seuils),

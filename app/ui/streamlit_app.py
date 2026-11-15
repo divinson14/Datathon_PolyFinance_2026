@@ -31,6 +31,7 @@ etat.setdefault("profil_saisi", None)
 etat.setdefault("messages", [])
 etat.setdefault("etapes", [])
 etat.setdefault("memoire", None)          # dernier actif / dernière part, pour les relances courtes
+etat.setdefault("demande_en_attente", None)   # demande incomplète (actif OU part) complétée au message suivant
 
 st.warning("**Simulation uniquement** — aucune transaction réelle, aucun conseil financier personnalisé.", icon="⚠️")
 if donnees_fictives():          # repli silencieux du chargeur : on le rend impossible à manquer
@@ -52,7 +53,7 @@ def ecran_profil():
             st.markdown("\n".join(f"- {x}" for x in p["preferences"]))
             a_faire = p.get("a_faire")
             if st.button(f"Continuer avec {p['nom']}", key=pid, width="stretch", type="primary", disabled=bool(a_faire)):
-                etat.persona, etat.messages, etat.etapes, etat.memoire = pid, [], [], None
+                etat.persona, etat.messages, etat.etapes, etat.memoire, etat.demande_en_attente = pid, [], [], None, None
                 st.rerun()
             if a_faire:
                 st.caption("Bientôt : " + a_faire)
@@ -72,7 +73,7 @@ def ecran_profil():
                 etat.persona = "personnalise"
                 etat.profil_saisi = {"age": age, "tolerance": tolerance, "horizon_ans": horizon, "objectif": objectif,
                                      "esg": esg, "capital": capital}
-                etat.messages, etat.etapes, etat.memoire = [], [], None
+                etat.messages, etat.etapes, etat.memoire, etat.demande_en_attente = [], [], None, None
                 st.rerun()
 
 
@@ -229,7 +230,7 @@ def ecran_analyse():
     for t in mandat["tensions"]:
         tete_g.warning(f"Tension dans le profil : {t}.", icon="⚠️")
     if tete_d.button("Changer de profil"):
-        etat.persona, etat.memoire = None, None
+        etat.persona, etat.memoire, etat.demande_en_attente = None, None, None
         st.rerun()
 
     gauche, droite = st.columns([1.15, 1], gap="large")
@@ -277,7 +278,9 @@ def ecran_analyse():
             afficher_etape(e, zone_agents)
 
         res = executer(None if saisie else etat.persona, question, on_etape=en_direct, profil_saisi=saisie,
-                       memoire=etat.memoire)
+                       memoire=etat.memoire, en_attente=etat.demande_en_attente)
+        # Demande en attente : gardée si incomplète, complétée au message suivant, vidée quand l'analyse est lancée.
+        etat.demande_en_attente = profil.maj_demande_en_attente(etat.demande_en_attente, res, question)
         dem = res.get("demande_extraite")
         if dem is not None:                     # la mémoire suit la DERNIÈRE demande comprise (jamais devinée)
             avant = (etat.memoire or {}).get("derniere_lecture")

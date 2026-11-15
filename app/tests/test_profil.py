@@ -293,3 +293,73 @@ def test_part_seule_reprend_le_dernier_actif():
 def test_actif_seul_sans_comparaison_demande_la_part():
     r = _conversation(["Je pense mettre 30 % dans Tesla.", "je pense à nvidia"])
     assert r[1]["arret"] and "part du portefeuille" in r[1]["demande_extraite"]["informations_manquantes"]
+
+
+# ---------- Demande en attente (multi-tours) : même logique que l'interface (st.session_state) ----------
+
+def _session(messages, persona="robert"):
+    """Rejoue une conversation comme ui/streamlit_app.py : mémoire + demande en attente mises à jour à chaque tour."""
+    from src.agents.profil import maj_demande_en_attente
+    from src.orchestrateur import executer
+    memoire, en_attente, tours = None, None, []
+    for m in messages:
+        res = executer(persona, m, memoire=memoire, en_attente=en_attente)
+        en_attente = maj_demande_en_attente(en_attente, res, m)
+        dem = res.get("demande_extraite")
+        if dem is not None:
+            avant = (memoire or {}).get("derniere_lecture")
+            lecture = dem["lecture"] if dem["part"] is not None else None
+            memoire = {"symbole": dem["symbole"], "lecture": lecture, "derniere_lecture": lecture or avant}
+        tours.append((res, en_attente))
+    return tours
+
+
+def test_part_puis_actif_analyse_tsla_10():
+    from src.agents.profil import RELANCE_ACTIF
+    (r1, att1), (r2, att2) = _session(["je veux mettre 10%", "tesla"])
+    assert r1["arret"] and r1["etapes"][-1]["texte"] == RELANCE_ACTIF        # relance courte, pas les 31 symboles
+    assert att1["lecture"]["part"] == pytest.approx(0.10) and att1["message_part"] == "je veux mettre 10%"
+    assert not r2["arret"] and r2["symbole"] == "TSLA" and r2["mandat"]["demande"]["part"] == pytest.approx(0.10)
+    profil_etape = next(e for e in r2["etapes"] if e["agent"] == "Agent Profil")
+    assert "Complété à partir du message précédent : part = 10 %" in profil_etape["note"]
+    trace = r2["journal"].trouver(r2["mandat"]["demande"]["trace"])
+    assert "complété à partir du message précédent : part = 10 %" in trace["sortie"]
+    assert att2 is None                                                       # analyse lancée → vidée
+
+
+def test_actif_puis_part_analyse_tsla_10():
+    (r1, att1), (r2, att2) = _session(["tesla", "10%"])
+    assert r1["arret"] and att1["symbole"] == "TSLA"
+    assert not r2["arret"] and r2["symbole"] == "TSLA" and r2["mandat"]["demande"]["part"] == pytest.approx(0.10)
+    assert att2 is None
+
+
+def test_part_puis_actif_hors_univers_liste_affichee():
+    (_, _), (r2, att2) = _session(["je veux mettre 10%", "Ford"])
+    assert r2["arret"] and "Il couvre 31 actifs" in r2["etapes"][-1]["texte"]
+    assert att2["lecture"]["part"] == pytest.approx(0.10)                     # la part attend toujours son actif
+
+
+@pytest.mark.parametrize("premier", ["tesla", "je veux mettre 10%"])
+def test_demande_complete_remplace_la_demande_en_attente(premier):
+    (_, att1), (r2, att2) = _session([premier, "Je pense mettre 5 % dans Nvidia."])
+    assert att1 is not None
+    assert not r2["arret"] and r2["symbole"] == "NVDA" and r2["mandat"]["demande"]["part"] == pytest.approx(0.05)
+    assert not (r2["mandat"]["demande"].get("completes") or [])
+    assert att2 is None
+
+
+def test_part_reprise_seulement_si_ancree_dans_son_message():
+    """Contrôle d'ancrage sur le message où la part a été trouvée : une part qui n'y figure pas n'est pas reprise."""
+    from src.orchestrateur import executer
+    faux = {"lecture": {"part": 0.4, "extrait": "40 %", "type": "pourcentage"}, "message_part": "je veux mettre 10%"}
+    res = executer("robert", "tesla", en_attente=faux)
+    assert res["arret"] and "part du portefeuille" in res["demande_extraite"]["informations_manquantes"]
+
+
+def test_garde_fou_ne_vide_pas_la_demande_en_attente():
+    from src.agents.profil import maj_demande_en_attente
+    from src.orchestrateur import executer
+    att = {"symbole": "TSLA", "message_symbole": "tesla"}
+    res = executer("robert", "Achète-le pour moi.", en_attente=att)
+    assert res["arret"] and maj_demande_en_attente(att, res, "Achète-le pour moi.") == att

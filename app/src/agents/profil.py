@@ -303,7 +303,39 @@ def _extraction_llm(message: str, univers, persona: dict) -> dict | None:
             "lecture": lecture, "methode": f"LLM Bedrock (actif) + contrôle par le code ({controle})"}
 
 
-def extraire(message: str, persona: dict, univers, journal=None, memoire: dict | None = None) -> dict:
+RELANCE_ACTIF = "Quel actif ? Par exemple Tesla, Nvidia ou un FNB comme XIU."
+
+
+def _ancree(lecture: dict | None, message_origine: str | None) -> bool:
+    """Contrôle d'ancrage d'une part REPRISE : son extrait doit figurer dans le message où elle a été trouvée."""
+    return bool(lecture and message_origine and lecture["extrait"] in message_origine)
+
+
+def maj_demande_en_attente(en_attente: dict | None, res: dict, message: str) -> dict | None:
+    """Demande en attente après un tour de conversation (code pur, partagé par l'interface et les tests).
+
+    - analyse lancée (demande complète) → None (vidée) ;
+    - arrêt AVANT la lecture de la demande (garde-fou, tolérance manquante) → inchangée ;
+    - demande incomplète → on garde les champs trouvés ; un champ présent dans ce message remplace l'ancien.
+      Chaque champ garde le message où il a été trouvé (contrôle d'ancrage au moment de la reprise).
+    """
+    if not res.get("arret"):
+        return None
+    dem = res.get("demande_extraite")
+    if dem is None:
+        return en_attente
+    p = dict(en_attente or {})
+    origines = dem.get("origines") or {}
+    if origines.get("symbole") == message and dem["symbole"] and len(dem["symboles_mentionnes"]) == 1:
+        p.update(symbole=dem["symbole"], message_symbole=message)
+    if origines.get("part") == message:                  # ce message donnait une part : elle remplace l'ancienne
+        valide = dem["part"] is not None                 # (une part invalide, ex. 150 %, efface l'ancienne)
+        p.update(lecture=dem["lecture"] if valide else None, message_part=message if valide else None)
+    return p if (p.get("symbole") or p.get("lecture")) else None
+
+
+def extraire(message: str, persona: dict, univers, journal=None, memoire: dict | None = None,
+             en_attente: dict | None = None) -> dict:
     """Retourne {symbole, part, symboles_mentionnes, informations_manquantes, question, methode, trace, …}.
 
     `question` est le message à poser à l'utilisateur quand la demande est incomplète ou ambiguë :
@@ -334,11 +366,30 @@ def extraire(message: str, persona: dict, univers, journal=None, memoire: dict |
     #                         ou renvoi à une part déjà donnée (« comme avant ») ;
     #  4. ni actif ni part  → jamais d'analyse : actif inconnu (« … dans Bombardier »), demande en attente
     #                         (reprise si « comme avant », sinon on redemande la part), ou message d'aide.
+    # DEMANDE EN ATTENTE (multi-tours) : un message incomplet garde ses champs (actif OU part) ; le message suivant
+    # les complète. Un message complet (actif + part) remplace la demande en attente. Prioritaire sur la mémoire.
+    origines = {"symbole": message if mentionnes else None, "part": message if lecture is not None else None}
+    completes, actif_tente = [], False
+    att = en_attente or {}
+    if att and not (mentionnes and lecture is not None):
+        if mentionnes and lecture is None and _ancree(att.get("lecture"), att.get("message_part")):
+            lecture = att["lecture"]                                                   # « 10 % » puis « tesla »
+            origines["part"] = att["message_part"]
+            completes.append(f"part = {pct(lecture['part'])}")
+        elif not mentionnes and att.get("symbole") and not nouvelle_cible(message):
+            symbole, mentionnes = att["symbole"], [att["symbole"]]                     # « tesla » puis « 10 % »
+            origines["symbole"] = att.get("message_symbole")
+            completes.append(f"actif = {symbole}")
+        elif not mentionnes and lecture is None and att.get("lecture"):
+            actif_tente = True                       # la part attend un actif : ce message en nomme un hors univers
+
     reprises, aide = [], None
     memoire = memoire or {}
     en_attente = bool(memoire.get("symbole")) and memoire.get("lecture") is None
     precedente = memoire.get("lecture") or memoire.get("derniere_lecture")
-    if not mentionnes and lecture is not None:                                        # règle 2
+    if completes or actif_tente:
+        pass                                                                          # demande en attente appliquée
+    elif not mentionnes and lecture is not None:                                      # règle 2
         if memoire.get("symbole") and not nouvelle_cible(message):                    # « 10 % dans Bombardier » : non
             symbole, mentionnes = memoire["symbole"], [memoire["symbole"]]
             reprises.append(f"actif {symbole}")
@@ -368,8 +419,9 @@ def extraire(message: str, persona: dict, univers, journal=None, memoire: dict |
                     "lequel veux-tu ajouter à ton portefeuille, et pour quelle part ?")
     elif symbole is None:
         manquants.append("actif")
+        # La liste complète seulement si un actif a VRAIMENT été nommé hors de l'univers (« … dans Ford », « Ford »).
         question = (f"Je ne reconnais pas d'actif de l'univers étudié dans ta demande. Il couvre {len(univers)} actifs : "
-                    + univers_lisible(univers) + ".")
+                    + univers_lisible(univers) + "." if actif_tente or nouvelle_cible(message) else RELANCE_ACTIF)
     if aide:
         pass
     elif part is None:
@@ -388,7 +440,7 @@ def extraire(message: str, persona: dict, univers, journal=None, memoire: dict |
     res_final = {"symbole": symbole,
                  "part": part, "lecture": lecture, "symboles_mentionnes": mentionnes,
                  "informations_manquantes": manquants, "question": question, "methode": res["methode"],
-                 "reprises": reprises, "trace": None}
+                 "reprises": reprises, "completes": completes, "origines": origines, "trace": None}
     if journal is not None:
         res_final["trace"] = _tracer(journal, message, persona, res_final)
     return res_final
@@ -402,6 +454,8 @@ def _tracer(journal, message: str, persona: dict, r: dict) -> str:
         morceaux.append(f"part : {pct(r['part'])} = {money(lec['montant'])} / capital {money(persona['capital'])} (extrait « {lec['extrait']} »)")
     elif r["part"] is not None:
         morceaux.append(f"part : {pct(r['part'])} (extrait « {lec['extrait']} »)")
+    if r.get("completes"):
+        morceaux.append("complété à partir du message précédent : " + ", ".join(r["completes"]))
     if r.get("reprises"):
         morceaux.append("repris de l'échange précédent : " + ", ".join(r["reprises"]))
     if r["informations_manquantes"]:
