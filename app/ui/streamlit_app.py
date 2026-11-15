@@ -68,16 +68,7 @@ if donnees_fictives():          # repli silencieux du chargeur : on le rend impo
 
 # ---------- Écran 1 : choix du profil ----------
 def ecran_profil():
-    st.markdown("<div class='af-hero'>On ne te dit pas quoi acheter.<br>"
-                "<span>On te montre où ta décision cesse d'être cohérente avec toi.</span></div>"
-                "<div class='af-hero-accroche'>30 % de tes dollars peuvent devenir 90 % de ton risque. "
-                "AlphaForge calcule la limite de ton profil, et prouve chaque chiffre.</div>"
-                "<div class='af-etapes'>"
-                "<div><b>1</b> Choisis un profil</div>"
-                "<div><b>2</b> Pose ta question en langage courant</div>"
-                "<div><b>3</b> Vois où ta demande bascule, chiffres vérifiés</div></div>",
-                unsafe_allow_html=True)
-    st.subheader("Choisis ton profil d'investisseur", anchor=False)
+    st.title("Choisis ton profil d'investisseur", anchor=False)
     st.markdown("<div class='af-sous-titre'>Simulation éducative · personas fictifs · aucun conseil personnalisé</div>",
                 unsafe_allow_html=True)
     cols = st.columns(len(config.PERSONAS), gap="large")
@@ -89,9 +80,7 @@ def ecran_profil():
                         f"<div class='af-persona-nom'>{p['nom']}</div>"
                         f"<div class='af-persona-meta'>{p['age']} ans · risque {config.GABARITS[p['risque']]['label'].lower()}"
                         f" · horizon {p['horizon']}</div>"
-                        f"<div class='af-persona-phrase'>{p['metier']}. {p['objectif']}.</div>"
-                        + (f"<div class='af-persona-test'>Ce qu'il met à l'épreuve : {p['met_a_l_epreuve']}</div>"
-                           if p.get("met_a_l_epreuve") else ""), unsafe_allow_html=True)
+                        f"<div class='af-persona-phrase'>{p['metier']}. {p['objectif']}.</div>", unsafe_allow_html=True)
             a_faire = p.get("a_faire")
             if st.button(f"Choisir {p['nom']}", key=pid, width="stretch", type="primary", disabled=bool(a_faire)):
                 etat.persona, etat.messages, etat.etapes, etat.memoire, etat.demande_en_attente = pid, [], [], None, None
