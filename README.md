@@ -1,4 +1,4 @@
-# AlphaForge AI
+# InvestIA
 **On ne vous dit pas quoi acheter. On vous montre où votre décision cesse d'être cohérente avec vous.**
 
 Copilote d'investissement **agentique et auto-explicatif**, en simulation. Datathon PolyFinances 2026 ·
