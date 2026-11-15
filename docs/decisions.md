@@ -49,8 +49,26 @@ Points de bascule obtenus (TSLA) : Robert 3 %, Mateo 6 %, Amira 13 %. Règle lim
 Robert à 30 % TSLA : TSLA porte 89,5 % du risque. Crypto : bascule à 0 % pour Robert et Mateo (interdite) et pour Amira (déjà au plafond de 10 %).
 
 ## ESG (Mateo)
-`data/raw/added/esg_controverses.csv` est encore vide : tous les titres sont « non évalué ». Le moteur ne les déclare
-**pas** conformes : il les signale comme information manquante (UI ⚠️, ligne dans l'explication). À remplir (NT), puis lancer `02_construire_esg.py`.
+Sortie : `data/processed/esg_drapeaux.csv` (via `02_construire_esg.py`). Sources détaillées dans `data/sources/sources_added.csv`.
+
+- **Titres détenus par des FNB ESG** (`raw/added/esg_etf_holdings.csv`) :
+  - ESGV (Vanguard, données au 2026-11-12) pour les 10 actions américaines : relevé manuel des 40 premiers titres ;
+    un titre absent de ce top 40 (poids < 0,35 %) est considéré comme exclu.
+  - XESG (iShares, fichier de l'émetteur au 2026-10-02) pour les 10 actions canadiennes, car ESGV ne détient que des
+    actions américaines. XESG n'est pas dans l'univers ; il sert seulement de référence. `dans_fnb_esg` = « dans ESGV ou XESG ».
+- **Règle de controverse de l'équipe** (`raw/added/esg_controverses.csv`) : `oui` si secteur énergie (ENB.TO, CNQ.TO, XOM)
+  ou exclusion observée d'ESGV hors énergie (JNJ) ; `non` sinon. Résultat : 4 `oui`, 16 `non`.
+- **Ce qui n'est pas affirmé** : la raison de l'exclusion de JNJ n'est pas publiée par Vanguard et n'est pas devinée ;
+  l'exclusion elle-même est déduite du top 40, pas vérifiée dans la liste complète.
+- **Limites** :
+  - règle simplifiée, sans revue détaillée par entreprise : elle ne capte pas les controverses sociales
+    ou de gouvernance que les filtres ESGV/XESG ne reflètent pas ;
+  - méthodologies d'émetteurs différentes : XESG pondère selon les notes MSCI sans exclure l'énergie ; ESGV exclut ;
+  - instantané 2026 appliqué à toute la période (biais d'anticipation).
+- **Conséquence pour Mateo** : TSLA est `non` (détenue par ESGV, hors énergie). Une évaluation ciblée de TSLA avec une
+  source officielle datée reste une amélioration possible.
+- Le moteur ne vérifie l'ESG que pour les titres individuels (actions, crypto). Les FNB et la crypto restent « non évalué » dans
+  `esg_drapeaux.csv`. Un titre non évalué n'est **pas** déclaré conforme : il est signalé comme information manquante.
 
 ## Agent Profil (app/src/agents/profil.py, config/profil.yaml, config/alias_actifs.yaml)
 - **Mandat JSON** = profil + gabarit + contraintes + horizon en années + informations manquantes + tensions + hypothèses + demande.
@@ -74,3 +92,11 @@ Robert à 30 % TSLA : TSLA porte 89,5 % du risque. Crypto : bascule à 0 % pour 
 
 ## Journal des choix
 - AAAA-MM-JJ — choix — raison — qui
+- 2026-11-14 — Sens du taux USD/CAD vérifié : `usdcad` varie de 1,245 à 1,460, donc CAD pour 1 USD ; les prix en USD
+  sont multipliés par ce taux, sans inversion — conforme à `sources_metadata.csv` (série FXUSDCAD de la Banque du Canada) — P1
+- 2026-11-14 — Trous dans les séries : report de la dernière valeur sur 3 jours de bourse au plus — les trous viennent
+  des fériés propres à la TSX ou aux bourses américaines (27 jours par titre sur 5 ans) ; aucun trou plus long n'existe,
+  donc aucune valeur inventée au-delà d'un congé — P1
+- 2026-11-14 — Correction de `01_nettoyer_prix.py` : le report se fait maintenant APRÈS la réduction aux jours de bourse —
+  avant, les fins de semaine (lignes crypto) comptaient dans la limite de 3 et les 13 titres `.TO` gardaient 3 trous
+  (2021-12-28, 2022-12-27, 2023-12-26 : Noël TSX collé à un week-end). Résultat : 0 valeur manquante sur les 31 actifs — P1

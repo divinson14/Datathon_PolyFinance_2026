@@ -15,7 +15,7 @@ for _, r in journal.iterrows():
     lignes.append(f"| {r['symbole']} | {premiere.date() if premiere is not None else '—'} | "
                   f"{r['valeurs_manquantes_avant']} | {r['valeurs_manquantes_apres']} |")
 lignes += ["", "## Traitements", "- Clôture ajustée (dividendes et fractionnements).",
-           "- Crypto alignée sur le calendrier boursier.", "- Trous ≤ 3 jours : report de la dernière valeur.",
+           "- Crypto alignée sur le calendrier boursier.", "- Trous ≤ 3 jours de bourse : report de la dernière valeur.",
            "- Conversion USD → CAD au taux de la Banque du Canada du jour.", "",
            "## Limites", "- Biais de survie : l'univers ne contient que des actifs existants aujourd'hui.",
            "- Données quotidiennes seulement ; aucune donnée intrajournalière."]
