@@ -83,7 +83,7 @@ def executer(persona_id: str | None, message: str, style: str | None = None, on_
     verd = gouvernance.verifier(journal, d, symbole, gabarit, univers, f"demande {pct(part)} {symbole}", persona)
     alt = None
     formulation = dict(regles=verd["regles"], trace=verd["trace"], consigne=verd["consigne"],
-                       resume=verd["resume"], tensions=verd["tensions_profil"])
+                       resume=verd["resume"], tensions=verd["tensions_profil"], redaction=verd.get("redaction"))
     if verd["statut"] == gouvernance.CORRIGEABLE:
         etape("Agent Gouvernance", "fail", f"{len(verd['violees'])} règle(s) violée(s) → correction demandée à l'Analyste",
               **formulation)

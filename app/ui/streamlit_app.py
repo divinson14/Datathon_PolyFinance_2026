@@ -86,6 +86,9 @@ def afficher_etape(e, conteneur):
                          hide_index=True, width="stretch")
         if e.get("resume"):
             st.markdown(e["resume"])
+            if e.get("redaction"):
+                st.caption("Formulé par le LLM, chiffres vérifiés" if e["redaction"] == "llm"
+                           else f"Formulé par le code ({e['redaction']})")
         if e.get("consigne"):
             st.caption(f"Correction envoyée à l'Analyste : « {e['consigne']} »")
         for tension in e.get("tensions") or []:
