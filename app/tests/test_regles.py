@@ -40,13 +40,37 @@ def test_crypto_interdite_pour_profil_prudent():
     assert "Cryptoactifs" in _violees(poids, _mesures(0.07, -0.1, {"BTC-USD": 0.05, "XIU.TO": 0.8, "XBB.TO": 0.15}), "faible_a_modere")
 
 
-def test_esg_non_evalue_signale_comme_manquant_pas_comme_conforme():
+def _esg_simule(monkeypatch, drapeaux: dict):
+    """Données ESG simulées : le test ne dépend pas du contenu réel de data/processed/esg_drapeaux.csv."""
+    import pandas as pd
+    from src.regles import moteur
+    monkeypatch.setattr(moteur, "charger_esg",
+                        lambda: pd.DataFrame({"symbole": list(drapeaux), "controverse": list(drapeaux.values())}))
+
+
+def _regle_esg(poids):
     _, univers, _ = charger()
-    poids = {"TSLA": 0.05, "XIU.TO": 0.45, "XBB.TO": 0.5}
-    regles = evaluer_regles(poids, _mesures(0.07, -0.1, {"TSLA": 0.1, "XIU.TO": 0.8, "XBB.TO": 0.1}),
+    regles = evaluer_regles(poids, _mesures(0.07, -0.1, {s: 1 / len(poids) for s in poids}),
                             GABARITS["modere"], univers, PERSONAS["mateo"])
-    esg = next(r for r in regles if r["regle"] == "Exclusions ESG")
-    assert esg["manquant"] and "TSLA" in esg["valeur"]
+    return next(r for r in regles if r["regle"] == "Exclusions ESG")
+
+
+def test_esg_non_evalue_signale_comme_manquant_pas_comme_conforme(monkeypatch):
+    _esg_simule(monkeypatch, {"FTS.TO": "non"})                      # TSLA absent des données ESG
+    esg = _regle_esg({"TSLA": 0.05, "XIU.TO": 0.45, "XBB.TO": 0.5})
+    assert esg["ok"] and esg["manquant"] and "TSLA" in esg["valeur"]
+
+
+def test_esg_controverse_viole_la_regle(monkeypatch):
+    _esg_simule(monkeypatch, {"TSLA": "oui"})
+    esg = _regle_esg({"TSLA": 0.05, "XIU.TO": 0.45, "XBB.TO": 0.5})
+    assert not esg["ok"] and "TSLA" in esg["valeur"]
+
+
+def test_esg_sans_controverse_conforme(monkeypatch):
+    _esg_simule(monkeypatch, {"TSLA": "non"})
+    esg = _regle_esg({"TSLA": 0.05, "XIU.TO": 0.45, "XBB.TO": 0.5})
+    assert esg["ok"] and not esg["manquant"]
 
 
 def test_portefeuilles_supposes_conformes_a_leur_profil():
