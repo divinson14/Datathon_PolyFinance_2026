@@ -63,6 +63,20 @@ Robert à 30 % TSLA : TSLA porte 89,5 % du risque. Crypto : bascule à 0 % pour 
   l'extrait est dans le message (contrôle d'ancrage) puis calcule la part. Un montant ≥ capital n'est pas une part.
   Plusieurs actifs cités ou part hors de 0–100 % → question à l'utilisateur. Deux traces : « Construction du mandat », « Extraction de la demande ».
 
+## Agent Explicabilité (app/src/agents/explicabilite.py, prompts/explicabilite.md, config/garde_fous.yaml)
+- **On décrit des limites, jamais de conseil** (énoncé : « ne pas se présenter comme fournissant un conseil
+  financier personnalisé »). Ex. : « le point de bascule se situe à 3 % », jamais « mettez 3 % ».
+- **Vérificateur de fidélité, deux contrôles en code pur** : (1) chaque chiffre du texte existe dans les traces ;
+  (2) aucune expression de conseil (liste dans config/garde_fous.yaml). Échec → régénération stricte, puis gabarit sûr.
+  Le contrôle s'applique aussi aux reformulations (« plus simple / plus technique »).
+- **Synthétique** : 4 à 6 affirmations, dans l'ordre part des dollars vs part du risque, règles violées, point de bascule,
+  rejeu 2022, hypothèse clé. « Fait » = ce qu'une trace dit explicitement ; aucun lien de cause inventé.
+- **Courbe de bascule** : part du risque portée par l'actif selon son poids (grille de l'outil point_de_bascule, trace citée),
+  limite du profil, point de bascule et demande. Image descriptive, aucune recommandation.
+- Rédaction : Claude Sonnet 5.5 sur Bedrock, 4 000 jetons max (1 500 tronquait la réponse JSON). Tout échec Bedrock
+  (identifiants expirés, réponse tronquée ou illisible) bascule sur le gabarit, avec le motif affiché.
+- Testé sur Bedrock (Robert, TSLA 30 %) : 6 affirmations, 33/33 chiffres vérifiés, aucune formulation de conseil, ~24 s.
+
 ## Services AWS
 | Service | Pourquoi |
 |---|---|

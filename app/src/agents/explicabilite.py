@@ -86,7 +86,7 @@ def _gabarit_texte(c: dict, style: str) -> dict:
     if style == "avance":
         intro = (f"Demande analysée : {w} en {s}. Elle respecte les {len(verd['regles'])} règles de votre mandat." if n == 0 else
                  f"Demande analysée : {w} en {s}. {n} règle(s) de votre mandat ne sont pas respectées ; voici le détail"
-                 + (" et une alternative conforme." if alt else ", sans alternative conforme."))
+                 + (" et la limite de votre mandat." if alt else " ; aucune part n'est compatible avec le mandat."))
         lignes.append({"tag": "Fait", "texte": f"Part des dollars ≠ part du risque : {s} représenterait {w} du capital mais "
                        f"{risque} du risque du portefeuille (limite par titre : {lim_risque}).", "traces": [m["trace"]]})
         lignes.append({"tag": "Fait", "texte": f"Volatilité annualisée : {pct(m['vol'])} (limite {pct(g['volatilite_max'])}) ; "
@@ -111,8 +111,9 @@ def _gabarit_texte(c: dict, style: str) -> dict:
         lignes.append({"tag": "Hypothèse", "texte": _hypothese(p, style), "traces": []})
         if alt:
             am = alt["mesures"]
-            lignes.append({"tag": "Scénario fictif", "texte": f"Alternative conforme : {pct(alt['part'])} en {s}, qui porterait "
-                           f"{pct(am['parts_risque'].get(s, 0.0))} du risque ; volatilité {pct(am['vol'])}, rejeu {annee} {pct(alt['rejeu']['rend'])}.",
+            lignes.append({"tag": "Scénario fictif", "texte": f"Vérification au point de bascule : à {pct(alt['part'])} de {s}, toutes les règles "
+                           f"du mandat sont respectées ({s} porterait {pct(am['parts_risque'].get(s, 0.0))} du risque ; volatilité {pct(am['vol'])} ; "
+                           f"rejeu {annee} {pct(alt['rejeu']['rend'])}).",
                            "traces": [am["trace"], alt["rejeu"]["trace"], alt["verdicts"]["trace"]]})
         limites = ("Fenêtre de 5 ans (un seul cycle de taux) et biais du survivant : les performances passées ne prédisent pas "
                    "les résultats futurs. La volatilité et la pire baisse ne sont que deux indicateurs de risque. "
@@ -120,7 +121,8 @@ def _gabarit_texte(c: dict, style: str) -> dict:
     else:
         intro = (f"Bonne nouvelle : {w} en {nom}, ça reste dans les limites de ton profil." if n == 0 else
                  f"En bref : {w} en {nom}, c'est plus de risque que ton profil ne le permet. "
-                 + ("Je t'explique pourquoi, et je te montre jusqu'où tu peux aller." if alt else "Et je n'ai pas trouvé d'option conforme."))
+                 + ("Je t'explique pourquoi, et je te montre où se situe la limite de ton profil." if alt
+                    else "Aucune part n'est compatible avec les limites de ton profil."))
         lignes.append({"tag": "Fait", "texte": f"En dollars, {nom} ferait {w} de ton portefeuille. En risque, il en porterait {risque} : "
                        f"c'est la part des hauts et des bas qui viendrait de lui. Ton profil fixe un maximum de {lim_risque} par titre.",
                        "traces": [m["trace"]]})
@@ -142,8 +144,8 @@ def _gabarit_texte(c: dict, style: str) -> dict:
                 lignes.append(lm)
         lignes.append({"tag": "Hypothèse", "texte": _hypothese(p, style), "traces": []})
         if alt:
-            lignes.append({"tag": "Scénario fictif", "texte": f"Une option plus équilibrée : {pct(alt['part'])} en {nom}. En {annee}, ton portefeuille "
-                           f"serait passé à environ {money(alt['rejeu']['final'])}, et ça respecte ton profil.",
+            lignes.append({"tag": "Scénario fictif", "texte": f"À la limite de ton profil ({pct(alt['part'])} en {nom}), toutes les règles sont respectées. "
+                           f"Simulé sur {annee}, ton portefeuille serait passé à environ {money(alt['rejeu']['final'])}.",
                            "traces": [alt["mesures"]["trace"], alt["rejeu"]["trace"], alt["verdicts"]["trace"]]})
         limites = (f"{annee} et les 5 dernières années ne sont que des exemples du passé : ça ne dit pas ce qui arrivera demain. "
                    f"On a aussi supposé ton portefeuille actuel : {p['portefeuille_suppose_libelle']}.")
@@ -163,14 +165,18 @@ def rediger(contexte: dict, journal, style: str, strict: bool = False) -> dict:
     texte = (prompt("explicabilite").replace("{style}", STYLES[cle_style])
              .replace("{traces}", traces).replace("{contexte}", json.dumps(ctx, ensure_ascii=False)))
     if strict:
-        texte += "\n\nATTENTION : une version précédente contenait un chiffre absent des traces. Recopie les chiffres EXACTEMENT."
+        texte += ("\n\nATTENTION : une version précédente a été rejetée (chiffre absent des traces ou formulation de conseil). "
+                  "Recopie les chiffres EXACTEMENT et décris uniquement des limites, sans jamais dire quoi faire.")
     try:
-        rep = bedrock_client.appeler_json(texte, modele="redaction")
-    except Exception as e:                    # identifiants expirés, réseau, modèle refusé… : la démo continue
+        rep = bedrock_client.appeler_json(texte, modele="redaction", max_tokens=4000)
+    except Exception as e:                    # identifiants expirés, réseau, réponse tronquée ou illisible : la démo continue
         fiche = _gabarit_texte(contexte, style)
-        fiche["auteur"] = f"gabarit (repli : LLM indisponible, {type(e).__name__})"
+        fiche["auteur"] = f"gabarit (repli : {type(e).__name__} — {str(e)[:160]})"
         return fiche
-    if not rep or not {"intro", "lignes", "limites"} <= set(rep):
-        return _gabarit_texte(contexte, style)
+    manquantes = {"intro", "lignes", "limites"} - set(rep)
+    if manquantes or not isinstance(rep.get("lignes"), list):
+        fiche = _gabarit_texte(contexte, style)
+        fiche["auteur"] = f"gabarit (repli : format inattendu, clés manquantes {sorted(manquantes)})"
+        return fiche
     rep.update(style=style, auteur="llm")
     return rep

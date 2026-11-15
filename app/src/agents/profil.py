@@ -222,7 +222,7 @@ def _extraction_llm(message: str, univers, persona: dict) -> dict | None:
         rep = bedrock_client.appeler_json(texte, modele="rapide")
     except Exception as e:                    # accès refusé, modèle non activé, réseau… : repli sur les règles locales
         return {"erreur": f"{type(e).__name__} : {str(e)[:300]}"}
-    if not rep:
+    if not isinstance(rep, dict):
         return {"erreur": "réponse JSON illisible"}
     symboles = set(univers["symbole"].astype(str))
     mentionnes = [s for s in rep.get("symboles_mentionnes") or [] if s in symboles]

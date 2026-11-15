@@ -38,3 +38,43 @@ def test_llm_indisponible_la_demo_continue(monkeypatch):
     monkeypatch.setattr(bedrock_client, "guardrail_bloque", lambda m: False)
     res = executer("robert", "Je pense mettre 30 % dans Tesla.")
     assert not res["arret"] and res["verif"]["ok"] and "repli" in res["fiche"]["auteur"]
+
+
+# ---------- Garde-fou anti-conseil (code pur) ----------
+
+def test_formulations_de_conseil_detectees():
+    from src.verif.fidelite import formulations_de_conseil as conseils
+    assert conseils("Tu devrais mettre plutôt 3 % en Tesla.") == ["tu devrais"]
+    assert "je vous recommande" in conseils("Je vous recommande de réduire.")
+    assert conseils("Avec ton profil, la limite est atteinte à 3 %. Ce n'est pas un conseil financier.") == []
+
+
+def test_reponse_avec_conseil_rejetee_puis_regeneree(monkeypatch):
+    res = executer("robert", "Je pense mettre 30 % dans Tesla.")
+    appels = {"n": 0}
+
+    def faux_llm(*a, **k):
+        appels["n"] += 1
+        fiche = _fiche_llm_depuis_gabarit(res["contexte"])
+        if appels["n"] == 1:                                   # 1re rédaction : chiffres justes mais un conseil
+            fiche["lignes"][0]["texte"] += " Je te recommande de rester sous la limite."
+        return fiche
+
+    monkeypatch.setattr(bedrock_client, "actif", lambda: True)
+    monkeypatch.setattr(bedrock_client, "appeler_json", faux_llm)
+    reformuler(res, "inter")
+    assert any("formulation(s) de conseil" in (e.get("note") or "") for e in res["etapes"])
+    assert res["verif"]["ok"] and "recommande" not in str(res["fiche"])
+
+
+def test_gabarits_sans_conseil_pour_les_trois_personas():
+    from src.config import PERSONAS
+    from src.verif.fidelite import formulations_de_conseil as conseils
+    for pid, p in PERSONAS.items():
+        res = executer(pid, p["message_exemple"])
+        if res["arret"]:
+            continue
+        for style in ("avance", "inter"):
+            f = explicabilite._gabarit_texte(res["contexte"], style)
+            texte = " ".join([f["intro"], *[l["texte"] for l in f["lignes"]], f["limites"]])
+            assert conseils(texte) == [], (pid, style, conseils(texte))
