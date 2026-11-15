@@ -149,6 +149,12 @@ Sortie : `data/processed/esg_drapeaux.csv` (via `02_construire_esg.py`). Sources
 - **Les sujets refusés bloquaient des simulations légitimes à l'entrée** (faux positifs mesurés : 8/13, puis 5, puis 3)
   → **détection en entrée, blocage en sortie** ; les ordres réels restent bloqués par une règle en code
   (regex de l'Agent Profil). Mesure : `python tests/verifier_guardrail.py` (rapide) ou `--complet` (14 scénarios).
+- **Règle en code des ordres réels** (`profil.MOTS_TRANSACTION`) : un ordre = l'utilisateur demande à l'assistant d'AGIR.
+  Motifs : verbe d'achat / vente suivi de « moi » ou « pour moi » (fautes tolérées : « achte moi », « achete ») ; impératif
+  en début de phrase (« Achetez… », « Vends… ») ; demande directe (« tu peux m'acheter… ») ; « passer un ordre » ;
+  « exécute la transaction ». Une hypothèse (« si j'achète… », « je pense mettre… », « bon investissement pour moi ? »)
+  n'est PAS un ordre. Correction du 2026-11-15 : « achte moi 30% d'action chez tesla » passait (faute de frappe),
+  « si j'achète 30 % de Tesla, quel risque ? » était bloqué. 15 ordres et 9 simulations testés (tests/test_guardrails.py).
 - **Sortie** (fin de `rediger_verifie`, donc aussi pour les reformulations) : ApplyGuardrail `source=OUTPUT` sur le
   texte réellement affiché. Intervention → message de remplacement sûr (aucun chiffre, aucun conseil) + trace.
 - **Traces** « Bedrock Guardrails · demande / réponse » : action (NONE / GUARDRAIL_INTERVENED), politiques

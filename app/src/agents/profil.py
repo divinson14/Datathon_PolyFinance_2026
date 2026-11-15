@@ -18,7 +18,20 @@ from src import bedrock_client
 from src.config import APP, GABARITS, PERSONAS, PROFIL, prompt
 from src.formatage import money, nombre, pct
 
-MOTS_TRANSACTION = re.compile(r"\b(ach[eè]te[- ]?(le|la|les)?|passe (l'|un )?ordre|ex[ée]cute|vends)\b", re.I)
+# ORDRE RÉEL = l'utilisateur demande à l'assistant d'AGIR (pas une simulation « si j'achète… », « je pense mettre… »).
+# Tolère les fautes courantes (« achte », « achete »). C'est le blocage d'entrée des ordres réels : Bedrock Guardrails
+# ne fait que DÉTECTER ce sujet en entrée (il bloquait des simulations légitimes, voir docs/decisions.md).
+_ACHAT_VENTE = (r"(?:ach[eèé]?t(?:e|es|ez|er)?|vend(?:s|ez|re)?|plac(?:e|es|ez|er)|investi(?:s|ssez|r)"
+                r"|met[sz]?|mettez|prends|prenez)")                  # formes VERBALES seulement (pas « placement »)
+MOTS_TRANSACTION = re.compile("|".join([
+    rf"\b{_ACHAT_VENTE}[\s-]+(?:pour\s+)?moi\b",                                     # « achète-moi », « achte moi », « mets-moi »
+    r"\bach[eèé]?te-(?:le|la|les)\b",                                                # « achète-le pour moi »
+    r"(?:^|[.!?;:]\s*)(?:ach[eèé]?te[sz]?|vend[sz]?|vendez|ex[ée]cute[sz]?)\b",       # impératif en début de phrase
+    rf"\b(?:(?:tu|vous)\s+(?:peux|pourrais|pouvez|pourriez)|(?:peux|pourrais|pouvez|pourriez)-(?:tu|vous))"
+    rf"\s+(?:m'|me\s+)?(?:{_ACHAT_VENTE}|passer)",                                    # « tu peux m'acheter… »
+    r"\bpass(?:e|er|ez)\s+(?:l'|un\s+|une\s+|des\s+|mon\s+|mes\s+)?ordres?\b",        # « passe l'ordre », « passer un ordre »
+    r"\bex[ée]cut\w*\s+(?:la|l'|une|cette|mon|ma|mes)\s*(?:transaction|ordre|achat|vente)",
+]), re.I)
 
 _POURCENTAGE = re.compile(r"(\d{1,3}(?:[.,]\d+)?)\s*(?:%|pour\s?cent|pourcent)", re.I)
 _MONTANT = re.compile(r"(\d{1,3}(?:[   ]\d{3})+|\d+)(?:[.,](\d+))?\s*(k)?\s*(?:\$|dollars?\b|CAD\b)", re.I)

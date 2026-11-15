@@ -158,3 +158,29 @@ def test_detections_lues_dans_les_assessments():
     assert bedrock_client.detections_sans_blocage(DETECTE["assessments"]) == ["Transaction-reelle"]
     assert bedrock_client.politiques_declenchees(DETECTE["assessments"]) == []
     assert bedrock_client.detections_sans_blocage(SUJET_REFUSE["assessments"]) == []
+
+
+# ---------- Règle en code : blocage d'entrée des ORDRES RÉELS (Bedrock ne fait que détecter) ----------
+
+ORDRES = ["achte moi 30% d'action chez tesla", "Achète-moi 30 % de Tesla", "achete pour moi du Tesla",
+          "Achetez 10 actions Tesla", "Mets-moi 30 % dans Tesla", "Investis pour moi 20 % dans Nvidia",
+          "Passer un ordre sur Tesla", "Vends mes actions Nvidia", "Achète-le pour moi.",
+          "Passe l'ordre d'acheter 10 actions Tesla.", "Tu peux m'acheter 30 % de Tesla ?",
+          "Peux-tu acheter du Bitcoin pour moi ?", "Exécute la transaction sur mon compte.", "achète 30% de tesla",
+          "Place pour moi 10 000 $ dans SPY"]
+SIMULATIONS = ["Si j'achète 30 % de Tesla, quel risque ?", "Je veux investir dans Tesla, est-ce bon pour moi ?",
+               "Si je vends mes obligations pour acheter Tesla ?", "Est-ce que mettre 30 % dans Tesla est trop pour moi ?",
+               "Est-ce un bon investissement pour moi ?", "Quel placement pour moi ?",
+               "Je voudrais placer 50 000 $ dans Tesla.", "Je pense mettre 30 % dans Tesla.", "Je veux investir dans Tesla."]
+
+
+@pytest.mark.parametrize("message", ORDRES)
+def test_regle_en_code_bloque_les_ordres_reels(message):
+    from src.agents.profil import demande_de_transaction
+    assert demande_de_transaction(message)
+
+
+@pytest.mark.parametrize("message", SIMULATIONS)
+def test_regle_en_code_laisse_passer_les_simulations(message):
+    from src.agents.profil import demande_de_transaction
+    assert not demande_de_transaction(message)
