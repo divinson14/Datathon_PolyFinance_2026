@@ -41,6 +41,8 @@ def appeler(texte: str, modele: str = "redaction", max_tokens: int = 1500) -> st
     # TODO équipe : journaliser rep["usage"] (jetons) et rep["metrics"]["latencyMs"] dans CloudWatch
     # La réponse peut contenir plusieurs blocs (raisonnement, texte…) dans n'importe quel ordre :
     # on garde uniquement les blocs de texte. Le raisonnement interne n'est ni lu ni exposé.
+    if rep.get("stopReason") == "max_tokens":
+        raise RuntimeError(f"réponse tronquée : limite de {max_tokens} jetons atteinte")
     blocs = rep["output"]["message"]["content"]
     texte_rep = "".join(b["text"] for b in blocs if "text" in b)
     if not texte_rep:
@@ -49,14 +51,17 @@ def appeler(texte: str, modele: str = "redaction", max_tokens: int = 1500) -> st
     return texte_rep
 
 
-def appeler_json(texte: str, modele: str = "redaction", max_tokens: int = 1500) -> dict | None:
-    """Appelle le modèle et extrait le premier objet JSON de la réponse (None si illisible)."""
+def appeler_json(texte: str, modele: str = "redaction", max_tokens: int = 1500) -> dict:
+    """Appelle le modèle et extrait le premier objet JSON de la réponse.
+    Lève une erreur EXPLICITE si la réponse est illisible : l'appelant affiche le motif au lieu d'un repli muet."""
     brut = appeler(texte, modele, max_tokens)
     m = re.search(r"\{.*\}", brut, re.S)
+    if not m:
+        raise ValueError(f"aucun JSON dans la réponse (début : {brut[:80]!r})")
     try:
-        return json.loads(m.group(0)) if m else None
-    except json.JSONDecodeError:
-        return None
+        return json.loads(m.group(0))
+    except json.JSONDecodeError as e:
+        raise ValueError(f"JSON illisible ({e.msg}, position {e.pos})") from e
 
 
 def modele_strands(role: str = "analyste"):

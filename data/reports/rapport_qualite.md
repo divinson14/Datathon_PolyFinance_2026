@@ -9,39 +9,39 @@
 | AAPL | 2021-11-12 | 27 | 0 |
 | AGG | 2021-11-12 | 27 | 0 |
 | AMZN | 2021-11-12 | 27 | 0 |
-| ATD.TO | 2021-11-12 | 27 | 3 |
+| ATD.TO | 2021-11-12 | 27 | 0 |
 | BTC-USD | 2021-11-12 | 0 | 0 |
-| CNQ.TO | 2021-11-12 | 27 | 3 |
-| CNR.TO | 2021-11-12 | 27 | 3 |
-| CSU.TO | 2021-11-12 | 27 | 3 |
-| ENB.TO | 2021-11-12 | 27 | 3 |
+| CNQ.TO | 2021-11-12 | 27 | 0 |
+| CNR.TO | 2021-11-12 | 27 | 0 |
+| CSU.TO | 2021-11-12 | 27 | 0 |
+| ENB.TO | 2021-11-12 | 27 | 0 |
 | ESGV | 2021-11-12 | 27 | 0 |
 | ETH-USD | 2021-11-12 | 0 | 0 |
-| FTS.TO | 2021-11-12 | 27 | 3 |
+| FTS.TO | 2021-11-12 | 27 | 0 |
 | GLD | 2021-11-12 | 27 | 0 |
 | GOOGL | 2021-11-12 | 27 | 0 |
 | JNJ | 2021-11-12 | 27 | 0 |
 | JPM | 2021-11-12 | 27 | 0 |
-| MFC.TO | 2021-11-12 | 27 | 3 |
+| MFC.TO | 2021-11-12 | 27 | 0 |
 | MSFT | 2021-11-12 | 27 | 0 |
 | NVDA | 2021-11-12 | 27 | 0 |
 | PG | 2021-11-12 | 27 | 0 |
 | QQQ | 2021-11-12 | 27 | 0 |
-| RY.TO | 2021-11-12 | 27 | 3 |
-| SHOP.TO | 2021-11-12 | 27 | 3 |
+| RY.TO | 2021-11-12 | 27 | 0 |
+| SHOP.TO | 2021-11-12 | 27 | 0 |
 | SPY | 2021-11-12 | 27 | 0 |
-| TD.TO | 2021-11-12 | 27 | 3 |
+| TD.TO | 2021-11-12 | 27 | 0 |
 | TLT | 2021-11-12 | 27 | 0 |
 | TSLA | 2021-11-12 | 27 | 0 |
-| XBB.TO | 2021-11-12 | 27 | 3 |
-| XIU.TO | 2021-11-12 | 27 | 3 |
+| XBB.TO | 2021-11-12 | 27 | 0 |
+| XIU.TO | 2021-11-12 | 27 | 0 |
 | XOM | 2021-11-12 | 27 | 0 |
-| ZST.TO | 2021-11-12 | 27 | 3 |
+| ZST.TO | 2021-11-12 | 27 | 0 |
 
 ## Traitements
 - Clôture ajustée (dividendes et fractionnements).
 - Crypto alignée sur le calendrier boursier.
-- Trous ≤ 3 jours : report de la dernière valeur.
+- Trous ≤ 3 jours de bourse : report de la dernière valeur.
 - Conversion USD → CAD au taux de la Banque du Canada du jour.
 
 ## Limites

@@ -1,0 +1,32 @@
+symbole,nom,classe,devise,secteur,crypto
+RY.TO,Royal Bank of Canada,equity,CAD,Financials,False
+TD.TO,Toronto-Dominion Bank,equity,CAD,Financials,False
+MFC.TO,Manulife Financial,equity,CAD,Financials,False
+ENB.TO,Enbridge,equity,CAD,Energy,False
+CNQ.TO,Canadian Natural Resources,equity,CAD,Energy,False
+CNR.TO,Canadian National Railway,equity,CAD,Industrials,False
+FTS.TO,Fortis,equity,CAD,Utilities,False
+ATD.TO,Alimentation Couche-Tard,equity,CAD,Consumer Staples,False
+SHOP.TO,Shopify,equity,CAD,Information Technology,False
+CSU.TO,Constellation Software,equity,CAD,Information Technology,False
+AAPL,Apple,equity,USD,Information Technology,False
+MSFT,Microsoft,equity,USD,Information Technology,False
+NVDA,NVIDIA,equity,USD,Information Technology,False
+GOOGL,Alphabet (Class A),equity,USD,Communication Services,False
+AMZN,Amazon,equity,USD,Consumer Discretionary,False
+TSLA,Tesla,equity,USD,Consumer Discretionary,False
+JPM,JPMorgan Chase,equity,USD,Financials,False
+JNJ,Johnson & Johnson,equity,USD,Health Care,False
+PG,Procter & Gamble,equity,USD,Consumer Staples,False
+XOM,Exxon Mobil,equity,USD,Energy,False
+XIU.TO,iShares S&P/TSX 60 Index ETF,etf_equity,CAD,Broad market (Canada),False
+SPY,SPDR S&P 500 ETF Trust,etf_equity,USD,Broad market (U.S.),False
+QQQ,Invesco QQQ Trust (Nasdaq-100),etf_equity,USD,Broad market (U.S. growth/tech-heavy),False
+ESGV,Vanguard ESG U.S. Stock ETF,etf_equity,USD,"Broad market (U.S., ESG-screened)",False
+XBB.TO,iShares Core Canadian Universe Bond Index ETF,etf_bond,CAD,Bonds (Canada aggregate),False
+ZST.TO,BMO Ultra Short-Term Bond ETF,etf_bond,CAD,Bonds (Canada ultra short-term),False
+AGG,iShares Core U.S. Aggregate Bond ETF,etf_bond,USD,Bonds (U.S. aggregate),False
+TLT,iShares 20+ Year Treasury Bond ETF,etf_bond,USD,Bonds (U.S. long Treasury),False
+GLD,SPDR Gold Shares,etf_commodity,USD,Gold,False
+BTC-USD,Bitcoin,crypto,USD,Crypto asset,True
+ETH-USD,Ether,crypto,USD,Crypto asset,True

@@ -112,9 +112,13 @@ def point_de_bascule(journal, base: dict, symbole: str, gabarit: dict, univers, 
     grille = np.round(np.arange(0, 1 + pas / 2, pas), 6)
     premiere: dict[str, float] = {}          # règle -> première part qui la franchit
     part_max, limitantes, seuil = None, [], None
+    courbe = []                              # courbe de bascule : part du risque en fonction du poids demandé
     for x in map(float, grille):
         poids = poids_avec_position(base, symbole, x)
-        violees = [r["regle"] for r in evaluer_regles(poids, mesures(poids), gabarit, univers, persona) if not r["ok"]]
+        m = mesures(poids)
+        violees = [r["regle"] for r in evaluer_regles(poids, m, gabarit, univers, persona) if not r["ok"]]
+        courbe.append({"part": x, "part_risque": float(m["parts_risque"].get(symbole, 0.0)), "vol": m["vol"],
+                       "conforme": not violees})
         for r in violees:
             premiere.setdefault(r, x)
         if not limitantes:
@@ -133,12 +137,13 @@ def point_de_bascule(journal, base: dict, symbole: str, gabarit: dict, univers, 
         autres = [f"{r} à {pct(x)}" for r, x in sorted(premiere.items(), key=lambda kv: kv[1]) if r not in limitantes]
         if autres:
             sortie += " · autres seuils : " + ", ".join(autres)
+    sortie += f" · courbe de bascule : {len(grille)} points calculés"
     tid = journal.log(titre=f"Point de bascule · {symbole}", agent=agent,
                       outil=f'point_de_bascule(base, "{symbole}", gabarit)',
                       entrees=f"base : {poids_texte(base)} · grille de 0 à 100 % par pas de {pct(pas)} · gabarit « {gabarit['label']} »",
                       sortie=sortie, source=f"{_source()} + config/gabarits_risque.yaml", periode=_periode(rendements_hebdo()))
     return {"trace": tid, "part_max": part_max, "limitantes": limitantes, "premiere_violation": premiere,
-            "base_conforme": base_conforme}
+            "base_conforme": base_conforme, "courbe": courbe}
 
 
 def rejeu_2022(journal, poids: dict, capital: float, libelle: str, agent: str) -> dict:

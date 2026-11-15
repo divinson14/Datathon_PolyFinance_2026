@@ -25,6 +25,7 @@ def _yaml(nom):
 GABARITS = _yaml("gabarits_risque.yaml")
 CALCUL = _yaml("calcul.yaml")
 PROFIL = _yaml("profil.yaml")
+GARDE_FOUS = _yaml("garde_fous.yaml")
 STYLES = _yaml("styles_explication.yaml")
 TENSIONS_PROFIL = _yaml("tensions_profil.yaml")
 PERSONAS = {

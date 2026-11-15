@@ -27,7 +27,7 @@
   persona: robert
   message: "Et si je mettais 5 % en Bitcoin ?"
   attendu: {arret: false, regles_violees_min: 1, alternative: false}
-- nom: Mateo veut 10 % dans Tesla (ESG non évalué signalé)
+- nom: Mateo veut 10 % dans Tesla (ESG sans controverse, limite = part du risque)
   persona: mateo
   message: "Je veux mettre 10 % de mon portefeuille dans Tesla, mais je tiens aux critères ESG."
   attendu: {arret: false, regles_violees_min: 1, alternative: true}
@@ -51,3 +51,7 @@
   profil_saisi: {age: 30, tolerance: eleve, horizon_ans: 3, objectif: "croissance", esg: false}
   message: "Je pense mettre 30 % dans Tesla."
   attendu: {arret: false, regles_violees_min: 1, alternative: true}
+- nom: Mateo veut 5 % dans Exxon (controverse ESG, aucune part compatible)
+  persona: mateo
+  message: "Et 5 % dans Exxon ?"
+  attendu: {arret: false, regles_violees_min: 1, alternative: false}

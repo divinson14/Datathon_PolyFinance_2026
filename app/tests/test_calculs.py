@@ -75,3 +75,15 @@ def test_bascule_nulle_pour_crypto_si_interdite():
     b = calculs.point_de_bascule(Journal(), p["portefeuille_suppose"], "BTC-USD", GABARITS[p["risque"]], univers, "t", p)
     assert not b["part_max"] and "Cryptoactifs" in b["premiere_violation"]
     assert b["premiere_violation"]["Cryptoactifs"] <= 0.005
+
+
+def test_courbe_de_bascule_coherente_avec_le_point_de_bascule():
+    _, univers, _ = charger()
+    p = PERSONAS["robert"]
+    b = calculs.point_de_bascule(Journal(), p["portefeuille_suppose"], "TSLA", GABARITS[p["risque"]], univers, "t", p)
+    courbe = b["courbe"]
+    assert courbe[0]["part"] == 0 and courbe[-1]["part"] == pytest.approx(1.0)
+    parts = [pt["part_risque"] for pt in courbe]
+    assert all(b2 >= a - 1e-9 for a, b2 in zip(parts, parts[1:]))           # plus de poids → plus de risque
+    if b["part_max"]:
+        assert all(pt["conforme"] for pt in courbe if pt["part"] <= b["part_max"] + 1e-9)

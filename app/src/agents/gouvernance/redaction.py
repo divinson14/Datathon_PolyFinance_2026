@@ -89,6 +89,11 @@ def formuler(journal, jugement: dict, persona: dict | None) -> dict:
     trouves, rejets = fidelite.chiffres_introuvables(journal, RE_TRACE.sub(" ", ecrit), contexte_json)
     if rejets:
         return _repli(journal, jugement, f"chiffre(s) introuvable(s) dans les traces : {', '.join(rejets)}")
+    # Le résumé et les tensions sont lus par l'utilisateur : aucune formulation de conseil (config/garde_fous.yaml).
+    # La consigne, elle, est une instruction interne à l'Analyste ; elle n'est pas soumise à ce contrôle.
+    conseils = fidelite.formulations_de_conseil(" ".join([sortie["resume"], *sortie["tensions_profil"]]))
+    if conseils:
+        return _repli(journal, jugement, f"formulation(s) de conseil : {', '.join(conseils)}")
 
     note = (f" · statut proposé par le LLM « {lu['statut']} » ignoré" if lu["statut"] not in (None, statut) else "")
     journal.log(titre="Formulation Gouvernance · chiffres vérifiés", agent="Vérificateur (code, sans LLM)",

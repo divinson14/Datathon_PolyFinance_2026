@@ -147,7 +147,7 @@ def rediger_verifie(contexte: dict, journal, style: str, autorise: str, etape):
     verif = fidelite.verifier(journal, fiche, autorise, version)
     if not verif["ok"]:
         etape("Vérificateur de fidélité", "fail", "Réponse rejetée → régénération en mode strict",
-              note=f"Chiffre(s) introuvable(s) dans les traces : {', '.join(verif['rejets'])}", trace=verif["trace"])
+              note=verif["motif"] + ".", trace=verif["trace"])
         fiche = explicabilite.rediger(contexte, journal, style, strict=True)
         verif = fidelite.verifier(journal, fiche, autorise, version + 1)
         if not verif["ok"]:                     # dernier recours : gabarit sûr
