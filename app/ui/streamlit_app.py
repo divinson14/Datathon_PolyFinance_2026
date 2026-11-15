@@ -46,6 +46,9 @@ etat.setdefault("messages", [])
 etat.setdefault("etapes", [])
 etat.setdefault("memoire", None)          # dernier actif / dernière part, pour les relances courtes
 etat.setdefault("demande_en_attente", None)   # demande incomplète (actif OU part) complétée au message suivant
+etat.setdefault("question_en_cours", None)    # question en cours d'analyse : reprise si un clic interrompt l'exécution
+etat.setdefault("voir_coulisses", True)       # état de l'interrupteur « Voir comment j'ai décidé »
+etat.setdefault("_voir_affiche", True)        # valeur utilisée par le dernier affichage complet
 
 def entete():
     """Marque + indicateur discret du mode (Bedrock ou démonstration hors ligne)."""
@@ -331,6 +334,16 @@ def section_compte(mandat: dict) -> None:
 
 
 # ---------- Écran 3 : analyse (chat | coulisses) ----------
+@st.fragment
+def interrupteur_coulisses():
+    """Dans un fragment : cliqué PENDANT une analyse, il attend qu'elle se termine au lieu de l'interrompre
+    (un widget du script principal relancerait tout et couperait l'analyse en cours)."""
+    st.toggle("Voir comment j'ai décidé", key="voir_coulisses")
+    if etat.voir_coulisses != etat._voir_affiche:     # changement fait à l'arrêt : on redessine toute la page
+        etat._voir_affiche = etat.voir_coulisses
+        st.rerun()
+
+
 def ecran_analyse():
     saisie = etat.profil_saisi if etat.persona == "personnalise" else None
     mandat = profil.construire_mandat(None if saisie else etat.persona, saisie)
@@ -343,14 +356,15 @@ def ecran_analyse():
     for t in mandat["tensions"]:
         tete_g.warning(f"Tension dans le profil : {t}.", icon="⚠️")
     if tete_d.button("Changer de profil"):
-        etat.persona, etat.memoire, etat.demande_en_attente = None, None, None
+        etat.persona, etat.memoire, etat.demande_en_attente, etat.question_en_cours = None, None, None, None
         st.rerun()
     section_compte(mandat)
     st.markdown("<div id='analyse'></div><div class='af-section'>Analyse d'un placement</div>", unsafe_allow_html=True)
 
     gauche, droite = st.columns([1.15, 1], gap="large")
     with droite:
-        voir = st.toggle("Voir comment j'ai décidé", value=True, key="voir_coulisses")
+        interrupteur_coulisses()
+        voir = etat._voir_affiche = etat.voir_coulisses
         if bedrock_client.actif():
             st.caption(f"Agents sur Amazon Bedrock · Profil : {os.getenv('BEDROCK_MODELE_RAPIDE', '?')} · "
                        f"Explicabilité : {os.getenv('BEDROCK_MODELE_REDACTION', '?')}")
@@ -378,14 +392,22 @@ def ecran_analyse():
                     else:
                         afficher_reponse(m["res"], i)
         st.caption(f"Exemple : {p['message_exemple']}")
-        question = st.chat_input("Écris ta question…")
+        # submit_mode="disable" : pas de nouveau message tant que l'analyse en cours n'est pas terminée
+        question = st.chat_input("Écris ta question…", submit_mode="disable")
 
-    if question:
+    if question:                                # nouvelle question : mémorisée AVANT l'analyse
         etat.messages.append({"role": "user", "texte": question})
+        etat.question_en_cours = question
         etat.etapes = []
         with fil:
             with st.chat_message("user"):
                 st.markdown(question)
+    elif etat.question_en_cours:                # analyse interrompue par un clic : elle reprend automatiquement
+        question = etat.question_en_cours
+        etat.etapes = []
+
+    if question:
+        with fil:
             attente = st.empty()
             attente.info("Les agents analysent ta demande… suis leur travail à droite.")
 
@@ -409,6 +431,7 @@ def ecran_analyse():
             etat.memoire = {"symbole": dem["symbole"], "lecture": lecture, "derniere_lecture": lecture or avant}
         attente.empty()
         etat.messages.append({"role": "assistant", "res": res})
+        etat.question_en_cours = None           # analyse terminée : plus rien à reprendre
         st.rerun()
 
 

@@ -60,7 +60,7 @@ def test_mode_strands_cles_et_stress_test(strands):
     d = _demande(j)
     assert set(d) == CLES
     assert d["vol"] is d["mesures"] and d["part"] == 0.3
-    assert d["raisonnement"].endswith("PART=0.3")
+    assert "PART=" not in d["raisonnement"]            # la ligne technique n'est jamais affichée
     # le stress-test choisi par le modèle est dans les extras, avec une trace réelle
     assert len(d["extras"]) == 1
     libelle, valeur, tid = d["extras"][0]
@@ -158,3 +158,30 @@ def test_pire_fenetre_12_mois_trace_et_coherence():
     n = config.CALCUL["fenetre_stress_jours"]
     assert calculs.pire_fenetre_12_mois(Journal(), {"XIU.TO": 1.0}, "t", "t")["rend"] == pytest.approx(
         float((p.shift(-n) / p - 1).min()))
+
+
+
+# ---------- Commentaire du modèle : vérifié avant affichage ----------
+
+_PLAN_MIN = [("statistiques_actif",), ("contexte_taux_2022",), ("rejeu_2022", 0), ("volatilite_portefeuille", 0),
+             ("rejeu_2022", 0.3), ("volatilite_portefeuille", 0.3)]
+
+
+def test_commentaire_avec_chiffres_des_traces_affiche(strands):
+    j = Journal()
+    strands(_PLAN_MIN, texte="J'ai appelé les outils demandés.\nPART=0.3")
+    d = _demande(j)
+    assert d["raisonnement"] == "J'ai appelé les outils demandés."
+    assert any(t["titre"].startswith("Commentaire de l'Analyste") for t in j.traces)
+
+
+def test_commentaire_avec_chiffre_invente_masque(strands):
+    strands(_PLAN_MIN, texte="TSLA a une volatilité de 73,4 % selon moi.\nPART=0.3")
+    d = _demande(Journal())
+    assert "masqué" in d["raisonnement"] and "73,4" in d["raisonnement"] and "selon moi" not in d["raisonnement"]
+
+
+def test_commentaire_avec_conseil_masque(strands):
+    strands(_PLAN_MIN, texte="Je vous recommande de réduire TSLA.\nPART=0.3")
+    d = _demande(Journal())
+    assert "masqué" in d["raisonnement"] and "conseil" in d["raisonnement"]
