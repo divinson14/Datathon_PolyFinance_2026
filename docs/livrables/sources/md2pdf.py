@@ -82,6 +82,11 @@ def tableau(lignes, st, largeur):
 
 
 def image(chemin: Path, largeur):
+    if chemin.suffix.lower() in (".png", ".jpg", ".jpeg"):           # image matricielle : pleine largeur
+        from reportlab.lib.utils import ImageReader
+        from reportlab.platypus import Image
+        w, h = ImageReader(str(chemin)).getSize()
+        return Image(str(chemin), width=largeur, height=largeur * h / w)
     try:
         from svglib.svglib import svg2rlg
         d = svg2rlg(str(chemin))

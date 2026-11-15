@@ -17,7 +17,7 @@ Le produit ne donne jamais de conseil d'achat personnalisé, ni de transaction r
 
 L'architecture repose sur une séparation claire des responsabilités entre code déterministe, agents LLM et mécanismes de vérification.
 
-![Architecture agentique](./architecture_aws.svg)
+![Architecture AWS d'InvestIA](./architecture_aws.png)
 
 ### Composants
 - Garde-fous : validation locale avant tout traitement, puis contrôle via Amazon Bedrock Guardrails pour interdire les transactions réelles, les conseils personnalisés ou les réponses non sécurisées.
