@@ -1,4 +1,4 @@
-# AlphaForge AI
+# InvestIA
 **On ne vous dit pas quoi acheter. On vous montre où votre décision cesse d'être cohérente avec vous.**
 
 **Le problème.** Robert, 59 ans, profil prudent, veut mettre 30 % de son portefeuille dans Tesla. Il pense
