@@ -286,7 +286,7 @@ def gabarit_et_si(c: dict, style: str) -> dict:
         limites = ("C'est un scénario fictif : on change une seule chose pour voir son effet. "
                    "Le passé ne dit pas ce qui arrivera demain.")
     return _mentions_obligatoires({"intro": intro, "lignes": lignes, "limites": limites, "style": style,
-                                   "auteur": "gabarit (Et si)"})
+                                   "auteur": "scénario « Et si »"})
 
 
 def rediger_et_si(contexte: dict, journal, style: str, strict: bool = False) -> dict:

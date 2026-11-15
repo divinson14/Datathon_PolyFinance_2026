@@ -14,7 +14,7 @@ from src import config
 from src.agents import explicabilite, profil
 from src.donnees.chargeur import LIBELLE_DEMO, donnees_fictives
 from src.formatage import money, pct
-from src.orchestrateur import executer, reformuler
+from src.orchestrateur import et_si, executer, options_et_si, reformuler
 
 st.set_page_config(page_title="AlphaForge AI", layout="wide")
 st.markdown("""<style>
@@ -171,6 +171,15 @@ def afficher_reponse(res, index):
         st.markdown(res["etapes"][-1]["texte"])
         return
     f, d, alt_ = res["fiche"], res["demande"], res["alternative"]
+    es = res.get("et_si")
+    if es:                                   # réponse « Et si » : tableau avant / après calculé par le code
+        st.caption(f"🔀 **Scénario fictif « Et si »** — {es['libelle'].removeprefix('Et si · ')} · "
+                   "l'analyse d'origine reste inchangée")
+        diff = res["differentiel"]
+        st.dataframe(pd.DataFrame([{"Élément": l["element"], "Avant": l["avant"], "Après": l["apres"],
+                                    "Modifié": "🔸 oui" if l["change"] else ""} for l in diff["lignes"]]),
+                     hide_index=True, width="stretch")
+        st.caption(f"Différentiel calculé par le code, sans LLM · trace {diff['trace']}")
     auteur = f.get("auteur", "gabarit")
     st.caption("Rédigé par le LLM (Amazon Bedrock), chiffres contrôlés par le code" if auteur == "llm"
                else f"Rédigé par un gabarit de texte ({auteur}), chiffres contrôlés par le code")
@@ -198,11 +207,20 @@ def afficher_reponse(res, index):
                    "sans formulation de conseil.", title="Le vérificateur a bloqué une version précédente de cette réponse",
                    icon=":material/shield:")
     st.success(f"Chiffres vérifiés : chacun provient d'une trace de calcul ({res['verif']['trace']}).")
-    autre = "inter" if f["style"] == "avance" else "avance"
-    if st.button("Explique-moi plus simplement" if autre == "inter" else "Version plus technique", key=f"style{index}"):
-        with st.spinner("L'Agent Explicabilité reformule, puis le vérificateur contrôle chaque chiffre…"):
-            reformuler(res, autre, on_etape=etat.etapes.append)
-        st.rerun()
+    if not es:                               # reformulation et « Et si » : seulement sous une réponse d'ORIGINE
+        autre = "inter" if f["style"] == "avance" else "avance"
+        if st.button("Explique-moi plus simplement" if autre == "inter" else "Version plus technique", key=f"style{index}"):
+            with st.spinner("L'Agent Explicabilité reformule, puis le vérificateur contrôle chaque chiffre…"):
+                reformuler(res, autre, on_etape=etat.etapes.append)
+            st.rerun()
+        options = options_et_si(res)         # boutons masqués quand ils seraient sans effet (config/scenarios.yaml)
+        if options:
+            st.markdown("**Et si… ?** — scénario fictif : une seule hypothèse change, cette réponse reste intacte.")
+            for col, o in zip(st.columns(len(options)), options):
+                if col.button(o["bouton"], key=f"etsi{index}{o['parametre']}", help=o["effet"]):
+                    etat.et_si_attente = {"index": index, "parametre": o["parametre"], "valeur": o["valeur"],
+                                          "bouton": o["bouton"]}
+                    st.rerun()
     with st.expander(f"Voir les {len(res['journal'].traces)} traces (journal d'audit)"):
         for t in res["journal"].traces:
             st.markdown(f"**{t['id']} · {t['titre']}** — _{t['agent']}_  \n`{t['outil']}`  \nEntrées : {t['entrees']}  \n"
@@ -258,6 +276,31 @@ def ecran_analyse():
         st.caption(f"Exemple : {p['message_exemple']}")
         question = st.chat_input("Écris ta question…")
 
+    def en_direct(e):                           # chaque agent apparaît au fur et à mesure
+        etat.etapes.append(e)
+        afficher_etape(e, zone_agents)
+
+    demande_et_si = etat.get("et_si_attente")
+    if demande_et_si:                           # bouton « Et si » cliqué : relance sur une COPIE du mandat d'origine
+        del etat["et_si_attente"]
+        origine = etat.messages[demande_et_si["index"]]["res"]
+        etat.messages.append({"role": "user", "texte": f"🔀 {demande_et_si['bouton']}"})
+        etat.etapes = []
+        with fil:
+            with st.chat_message("user"):
+                st.markdown(f"🔀 {demande_et_si['bouton']}")
+            attente = st.empty()
+            attente.info("Je relance l'analyse avec cette hypothèse… (30 à 60 s sur Bedrock). "
+                         "Suis les agents à droite ; la réponse d'origine reste intacte.", icon="⏳")
+        try:
+            nouveau = et_si(origine, demande_et_si["parametre"], demande_et_si["valeur"], on_etape=en_direct)
+            etat.messages.append({"role": "assistant", "res": nouveau})
+        except ValueError as erreur:            # hors liste blanche : refus honnête, rien n'est inventé
+            etat.messages.append({"role": "assistant", "res": {"arret": True, "etapes": [
+                {"agent": "Orchestrateur", "statut": "warn", "texte": f"« Et si » impossible : {erreur}"}]}})
+        attente.empty()
+        st.rerun()
+
     if question:
         etat.messages.append({"role": "user", "texte": question})
         etat.etapes = []
@@ -266,10 +309,6 @@ def ecran_analyse():
                 st.markdown(question)
             attente = st.empty()
             attente.info("Les agents analysent ta demande… suis leur travail à droite.")
-
-        def en_direct(e):                       # chaque agent apparaît au fur et à mesure
-            etat.etapes.append(e)
-            afficher_etape(e, zone_agents)
 
         res = executer(None if saisie else etat.persona, question, on_etape=en_direct, profil_saisi=saisie)
         attente.empty()

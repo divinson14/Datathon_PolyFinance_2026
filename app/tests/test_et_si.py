@@ -183,4 +183,4 @@ def test_chiffre_invente_dans_l_explication_et_si_repli_sur_le_gabarit(robert, m
     r = et_si(robert, "tolerance", "modere")
     rejets = [e for e in r["etapes"] if e["agent"] == "Vérificateur de fidélité" and e["statut"] == "fail"]
     assert rejets and "42,7" in rejets[0]["note"]
-    assert r["verif"]["ok"] and r["fiche"]["auteur"] == "gabarit (Et si)" and "42,7" not in _texte(r["fiche"])
+    assert r["verif"]["ok"] and r["fiche"]["auteur"] == "scénario « Et si »" and "42,7" not in _texte(r["fiche"])
