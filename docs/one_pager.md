@@ -26,7 +26,9 @@ contre une volatilité de 55,7 %), sans jamais céder à une hypothèse plus fav
 
 **Données.** 31 actifs (actions canadiennes et américaines, FNB, obligations, or, cryptoactifs), 5 ans de prix
 quotidiens (Yahoo Finance, prix ajustés), **tout en CAD** au taux de la Banque du Canada ; taux directeur
-(Banque du Canada), sans jamais utiliser une donnée publiée après la date simulée ; ESG sourcé et motivé.
+(Banque du Canada), sans jamais utiliser une donnée publiée après la date simulée. **ESG : version partielle**,
+assumée : règle sectorielle et fonds ESG (ESGV, XESG), sans revue des controverses sociales ; ce qui n'est pas
+évalué est signalé « à vérifier », jamais déclaré conforme.
 Seuils des profils : hypothèses de l'équipe, affichées comme telles.
 
 **Explicabilité vérifiable.** Chaque étape écrit une trace horodatée (entrées, sortie, source), stockée dans

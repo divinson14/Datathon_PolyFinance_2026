@@ -21,15 +21,16 @@ tests/                 tests unitaires + scénarios piégés
 
 ```bash
 cd app
-python -m venv .venv
+python3 -m venv .venv              # Windows : python -m venv .venv
 source .venv/bin/activate          # Windows : .venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env               # Windows : copy .env.example .env
 streamlit run ui/streamlit_app.py
 ```
 
-Par défaut `MODE=local` : les agents sont simulés et, tant que `data/processed/` est vide,
-les données sont **fictives** (affiché sous chaque réponse).
+Par défaut `MODE=local` : les textes des agents viennent de gabarits (aucun appel AWS), mais les calculs, le moteur
+de règles, le vérificateur et les traces sont réels. Les données propres sont incluses dans `data/processed/` ;
+si ce dossier est absent, l'application bascule sur des données **fictives** et l'affiche en rouge.
 
 ## Brancher AWS (dans cet ordre)
 1. `aws configure` (jamais de clé dans le code ni dans `.env`).
