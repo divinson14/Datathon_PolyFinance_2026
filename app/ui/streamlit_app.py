@@ -3,6 +3,7 @@
 Lancer depuis app/ :  streamlit run ui/streamlit_app.py"""
 import os
 import sys
+import re
 import time
 from pathlib import Path
 
@@ -23,7 +24,7 @@ from src.regles.moteur import evaluer_regles
 from ui.composants import badge_etiquette, badge_trace, carte_kpi, carte_verdict, etape_timeline
 from ui.style import COULEURS, injecter_style
 
-st.set_page_config(page_title="AlphaForge", layout="wide")
+st.set_page_config(page_title="InvestIA", layout="wide")
 injecter_style()
 
 ORDRE_PERSONAS = ["robert", "amira", "mateo"]
@@ -191,7 +192,7 @@ def _verdict(res) -> tuple[str, str, list, str | None]:
     elif verd["statut"] == gouvernance.CONFORME:
         statut, titre = "manquant", f"{w} en {s} ne viole aucune règle, mais une information manque : {manquantes}."
     elif verd["statut"] == gouvernance.CORRIGEABLE:
-        statut, titre = "a_revoir", f"{w} en {s} dépasse {n} limite(s) de ton profil."
+        statut, titre = "a_revoir", f"{w} en {s} dépasse le(s) limite(s) de ton profil."
     else:
         statut, titre = "bloque", (f"Aucune part de {s} n'est compatible avec ton profil." if b["base_conforme"]
                                    else "Le portefeuille actuel dépasse déjà une limite du profil.")
@@ -236,13 +237,14 @@ def afficher_reponse(res, index):
     if alt_:
         valeurs[f"Au point de bascule ({pct(alt_['part'])})"] = alt_["rejeu"]["valeurs"]
     st.caption(f"Ce que 2022 aurait fait à {money(res['persona']['capital'])} (valeur en fin de mois, en CAD)")
-    mois = ["début"] + [f"{i:02d}/2022" for i in range(1, len(d["base"]["valeurs"]))]
+    noms_mois = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."]
+    mois = ["début"] + noms_mois[:len(d["base"]["valeurs"]) - 1]
     rejeu = go.Figure()
     for nom, serie in valeurs.items():
         rejeu.add_scatter(x=mois, y=serie, mode="lines", name=nom,
                           hovertemplate="%{x} · %{y:,.0f} $<extra>" + nom + "</extra>")
     mise_en_page(rejeu, 300).update_layout(yaxis=dict(tickformat=",.0f", ticksuffix=" $", gridcolor="#EEEEEA"),
-                                           xaxis=dict(showgrid=False), legend=dict(orientation="h", y=1.12))
+                                           xaxis=dict(showgrid=False, tickangle=0), legend=dict(orientation="h", y=1.12))
     st.plotly_chart(rejeu, width="stretch", config={"displayModeBar": False})
     st.info(f"**Limites.** {f['limites']}")
     rejets = [e for e in res["etapes"] if e["agent"] == "Vérificateur de fidélité" and e["statut"] == "fail"]
@@ -263,10 +265,28 @@ def afficher_reponse(res, index):
                         f"Sortie : **{t['sortie']}**  \nSource : {t['source']} · Période : {t['periode']}")
     with st.expander("Voir le mandat JSON (produit par l'Agent Profil)"):
         st.json(res["mandat"], expanded=False)
-    st.caption(f"Données : {res['source_donnees']} · montants et rendements en dollars canadiens (CAD)")
+    # Sous la réponse : sources en clair pour le client. Le chemin technique (s3://…) et la version
+    # des données (manifeste) sont affichés une seule fois dans « Voir comment j'ai décidé ».
+    src = res["source_donnees"]
+    st.caption(src if "FICTIVES" in src else
+               "Sources : Yahoo Finance (prix ajustés des dividendes et fractionnements) · Banque du Canada (taux de change, "
+               "taux directeur) · ESG : règle de l'équipe et fonds ESGV · montants en dollars canadiens (CAD)")
 
 
 # ---------- Écran 2 : « Mon compte » (compte de démonstration du persona) ----------
+def _esg_a_verifier(valeur_regle: str, univers) -> str:
+    """Reformule en clair les SEULES lignes signalées par la règle ESG (moteur de règles) : présentation seulement,
+    aucune ligne ajoutée ni retirée."""
+    infos = univers.set_index(univers["symbole"].astype(str))
+    signales = [s for s in infos.index if re.search(rf"(?<![\w.-]){re.escape(s)}(?![\w-])", valeur_regle)]
+    morceaux = []
+    for s in signales:
+        nom, classe, court = str(infos.loc[s, "nom"]), str(infos.loc[s, "classe"]), s.replace(".TO", "")
+        morceaux.append(f"{court} ({nom}) est un fonds de nombreuses entreprises, non évaluées une par une"
+                        if classe.startswith("etf") else f"{court} ({nom}) n'a pas encore été évalué")
+    return "" if not morceaux else "; ".join(morceaux) + ". À confirmer selon tes critères ESG."
+
+
 def _conformite_esg(p: dict, g: dict, univers, m: dict) -> tuple[str, str]:
     """KPI ESG : évaluée par le moteur de règles existant sur le portefeuille actuel (aucun LLM)."""
     if not p.get("exclusions_esg"):
@@ -275,15 +295,15 @@ def _conformite_esg(p: dict, g: dict, univers, m: dict) -> tuple[str, str]:
     if not regle["ok"]:
         return "Controverse", regle["valeur"]
     if regle.get("manquant"):
-        return "Information manquante", regle["valeur"]
+        return "À vérifier", _esg_a_verifier(regle["valeur"], univers) or regle["valeur"]
     return "Conforme", regle["valeur"]
 
 
 def section_compte(mandat: dict) -> None:
     p, g = mandat["profil"], mandat["gabarit"]
     poids = p.get("portefeuille_suppose") or {}
-    st.markdown("<div class='af-bandeau'>Compte de démonstration · données fictives · simulation, "
-                "aucune transaction réelle</div>", unsafe_allow_html=True)
+    st.markdown("<div class='af-bandeau'>Compte fictif · prix de marché réels (Yahoo Finance, convertis en CAD au taux "
+                "de la Banque du Canada) · simulation, aucune transaction réelle</div>", unsafe_allow_html=True)
     if not poids or not g:
         st.info("Le compte de démonstration s'affichera dès que la tolérance au risque sera précisée.")
         return
@@ -360,6 +380,7 @@ def ecran_analyse():
                            f"Explicabilité : {os.getenv('BEDROCK_MODELE_REDACTION', '?')}")
             else:
                 st.caption("Mode démonstration hors ligne : agents simulés, aucun appel AWS.")
+            st.caption(f"Données : {charger()[2]}")
             zone_agents = st.container()
         for i, e in enumerate(etat.etapes):
             etape_timeline(e, derniere=(i == len(etat.etapes) - 1), conteneur=zone_agents)
