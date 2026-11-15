@@ -7,7 +7,7 @@ en dollars, alors que leur portefeuille réagit au risque. Personne ne leur mont
 incohérent avec leur profil.
 
 **Notre réponse : le point de bascule.** Pour toute demande en langage courant (« je pense mettre 30 % dans
-Tesla »), AlphaForge calcule **la part maximale compatible avec le profil** et la règle qui casse en premier.
+Tesla »), InvestIA  calcule **la part maximale compatible avec le profil** et la règle qui casse en premier.
 Robert : **3 %**. Amira (profil élevé) : **13 %**. Mateo (modéré, ESG) : **6 %**. Même question, trois limites,
 et jamais « tout est permis » parce que le profil est audacieux.
 
