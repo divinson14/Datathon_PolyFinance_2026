@@ -11,7 +11,7 @@
   <rect width="1490" height="880" fill="#ffffff"/>
 
   <!-- Titre -->
-  <text x="30" y="42" font-size="24" font-weight="700" fill="#1b1b1b">AlphaForge AI — architecture de la solution</text>
+  <text x="30" y="42" font-size="24" font-weight="700" fill="#1b1b1b">InvestIA — architecture de la solution</text>
   <text x="30" y="66" font-size="13.5" fill="#555">Orchestration déterministe ; les agents décident et expliquent ; les chiffres et les seuils ne viennent jamais du LLM ; chaque étape laisse une trace.</text>
 
   <!-- Légende -->
