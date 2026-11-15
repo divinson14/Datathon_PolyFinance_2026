@@ -11,6 +11,7 @@ from src import config
 from src.agents import analyste, explicabilite, gouvernance, profil
 from src.donnees.chargeur import charger
 from src.formatage import nombre, pct
+from src.outils import differentiel
 from src.traces.journal import Journal
 from src.verif import fidelite
 
@@ -85,9 +86,10 @@ def _remarques(mandat: dict) -> list[str]:
 
 
 def _analyser(journal, etapes: list, etape, mandat: dict, symbole: str, part: float, univers, source: str,
-              style: str) -> dict:
+              style: str, redacteur=None) -> dict:
     """Étapes 3 à 5 (Analyste → Gouvernance + boucle de correction → Explicabilité + vérificateur).
-    Partagées par executer() et et_si() : même code, mêmes garde-fous."""
+    Partagées par executer() et et_si() : même code, mêmes garde-fous.
+    `redacteur(contexte, journal, style, autorise, etape) -> (fiche, verif)` remplace rediger_verifie (« Et si »)."""
     persona, gabarit = mandat["profil"], mandat["gabarit"]
     g = gabarit
     seuils = _seuils(g)
@@ -158,7 +160,7 @@ def _analyser(journal, etapes: list, etape, mandat: dict, symbole: str, part: fl
     autorise = " ".join([str(persona["capital"]), persona["horizon"], persona["portefeuille_suppose_libelle"],
                          str(config.CALCUL["annee_scenario"]), str(len(verd["regles"])), seuils,
                          nombre(g["paris_effectifs_min"]) if g.get("paris_effectifs_min") is not None else ""])
-    fiche, verif = rediger_verifie(contexte, journal, style, autorise, etape)
+    fiche, verif = (redacteur or rediger_verifie)(contexte, journal, style, autorise, etape)
 
     return {"arret": False, "etapes": etapes, "journal": journal, "persona": persona, "gabarit": gabarit,
             "symbole": symbole, "demande": d, "alternative": alt, "verdicts": verd, "fiche": fiche,
@@ -276,7 +278,18 @@ def et_si(res: dict, parametre: str, valeur, on_etape=None) -> dict:
                   ("Seuils (hypothèses de l'équipe)", _seuils(g)),
                   ("Profil", f"{mandat['source']} · horizon {persona['horizon']}"),
                   ("Traces", f"{mandat['trace']} (mandat modifié) · {origine['trace']} (mandat d'origine)")])
-    nouveau = _analyser(journal, etapes, etape, mandat, symbole, part, univers, source, res["fiche"]["style"])
+    def rediger_et_si(contexte, journal, style, autorise, etape):
+        # Différentiel calculé par le CODE (une trace), AVANT toute rédaction : l'explication ne cite que ces valeurs.
+        diff = differentiel.comparer(journal, res, contexte, mandat["et_si"]["libelle"])
+        contexte["differentiel"], contexte["et_si"] = diff, dict(mandat["et_si"])
+        etape("Orchestrateur", "ok", f"Différentiel avant / après calculé par le code · {len(diff['changements'])} "
+              "élément(s) modifié(s)", trace=diff["trace"],
+              note=("Modifié : " + ", ".join(diff["changements"]) + ".") if diff["changements"] else "Aucun élément modifié.")
+        return rediger_verifie(contexte, journal, style, autorise, etape)
+
+    nouveau = _analyser(journal, etapes, etape, mandat, symbole, part, univers, source, res["fiche"]["style"],
+                        redacteur=rediger_et_si)
     nouveau["et_si"] = dict(mandat["et_si"])
+    nouveau["differentiel"] = nouveau["contexte"]["differentiel"]
     nouveau["origine"] = res
     return nouveau

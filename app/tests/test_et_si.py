@@ -109,3 +109,32 @@ def test_aucun_bouton_sous_un_et_si_ni_apres_un_arret(robert):
 def test_valeurs_hors_liste_blanche_refusees(robert, parametre, valeur):
     with pytest.raises(ValueError):
         et_si(robert, parametre, valeur)
+
+
+# ---------- Différentiel (src/outils/differentiel.py) ----------
+
+def _diff(r):
+    return {l["element"]: l for l in r["differentiel"]["lignes"]}
+
+
+def test_differentiel_trace_avec_avant_apres(robert):
+    r = et_si(robert, "tolerance", "modere")
+    trace = r["journal"].trouver(r["differentiel"]["trace"])
+    assert trace["titre"].startswith("Différentiel « Et si »") and trace["agent"].startswith("Orchestrateur (code")
+    d = _diff(r)
+    assert d["Gabarit de tolérance"]["avant"] == "« Faible à modéré »" and d["Gabarit de tolérance"]["apres"] == "« Modéré »"
+    assert d["Point de bascule"]["change"] and "Point de bascule" in r["differentiel"]["changements"]
+    for l in d.values():                                  # chaque valeur citée est dans la trace
+        assert l["avant"] in trace["sortie"] and l["apres"] in trace["sortie"]
+
+
+def test_differentiel_horizon_seul_l_horizon_change(robert):
+    r = et_si(robert, "horizon", 10)
+    assert r["differentiel"]["changements"] == ["Horizon"]
+
+
+def test_differentiel_moitie_moins(robert):
+    r = et_si(robert, "part", 0.15)
+    d = _diff(r)
+    assert d["Part demandée"]["avant"] == "30 %" and d["Part demandée"]["apres"] == "15 %"
+    assert not d["Gabarit de tolérance"]["change"] and not d["Point de bascule"]["change"]
