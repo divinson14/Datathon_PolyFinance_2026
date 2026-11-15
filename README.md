@@ -143,8 +143,13 @@ python tests/lancer_scenarios.py    # scénarios piégés : tableau prêt pour l
 
 ## Limites assumées
 Cinq ans de données (un seul cycle de taux) et biais du survivant ; seuils des profils = hypothèses documentées ;
-portefeuille de départ supposé pour chaque persona ; une demande analysée à la fois ; ESG fondé sur une règle
-sectorielle et l'univers du fonds ESGV, pas sur une revue des controverses.
+portefeuille de départ supposé pour chaque persona ; une demande analysée à la fois.
+
+**ESG : implémentation partielle, assumée.** Ce n'est pas une note ESG. La règle d'exclusion de Mateo repose sur
+(1) une règle sectorielle de l'équipe (énergie = controverse) et (2) la présence dans un FNB ESG (ESGV, XESG). Il n'y a
+**ni revue des controverses sociales ou de gouvernance, ni évaluation des FNB titre par titre** : un fonds comme XIU
+est donc signalé « à vérifier », jamais déclaré conforme. Les données sont un instantané de 2026 appliqué à toute la
+période. Détail : [`docs/documentation_technique.md`](docs/documentation_technique.md), section 7.
 
 ## Équipe
 <!-- ÉQUIPE : numéro d'équipe et membres --> _à compléter_
