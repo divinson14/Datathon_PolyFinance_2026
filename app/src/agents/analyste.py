@@ -12,7 +12,7 @@ import threading
 
 from src import bedrock_client, config
 from src.formatage import money, nombre, pct
-from src.outils import calculs
+from src.outils import calculs, client_lambda
 from src.verif import fidelite
 
 COMPLETE = " (complété par l'orchestrateur)"
