@@ -31,5 +31,13 @@ class Journal:
                 f.write(json.dumps(trace, ensure_ascii=False) + "\n")
         return tid
 
+    def copie(self) -> "Journal":
+        """Nouveau journal (nouvelle session) qui reprend une COPIE des traces existantes : la numérotation continue,
+        et le journal d'origine n'est jamais modifié (utilisé par « Et si… »)."""
+        import copy
+        j = Journal()
+        j.traces = copy.deepcopy(self.traces)
+        return j
+
     def trouver(self, tid: str) -> dict | None:
         return next((t for t in self.traces if t["id"] == tid), None)

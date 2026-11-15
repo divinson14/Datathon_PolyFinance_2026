@@ -1,5 +1,12 @@
 """Orchestrateur DÉTERMINISTE : enchaîne les agents, gère la boucle de correction (max. 3 tentatives)
-et publie chaque étape via on_etape (l'interface l'affiche au fur et à mesure)."""
+et publie chaque étape via on_etape (l'interface l'affiche au fur et à mesure).
+
+- executer() : Guardrails → Profil → Analyste → Gouvernance → Explicabilité ;
+- et_si()    : relance Profil → Analyste → Gouvernance → Explicabilité sur une COPIE du mandat d'origine
+               avec UNE modification (tolérance, horizon ou part). L'analyse d'origine n'est jamais modifiée.
+"""
+import copy
+
 from src import config
 from src.agents import analyste, explicabilite, gouvernance, profil
 from src.donnees.chargeur import charger
@@ -17,12 +24,7 @@ def executer(persona_id: str | None, message: str, style: str | None = None, on_
     mandat = profil.construire_mandat(persona_id, profil_saisi, journal)
     persona, gabarit = mandat["profil"], mandat["gabarit"]
     style = style or ("avance" if persona["niveau_experience"] == "avance" else "inter")
-
-    def etape(agent, statut, texte, **details):
-        e = {"agent": agent, "statut": statut, "texte": texte, **details}
-        etapes.append(e)
-        if on_etape:
-            on_etape(e)
+    etape = _publieur(etapes, on_etape)
 
     def arret():
         return {"arret": True, "etapes": etapes, "journal": journal, "persona": persona, "mandat": mandat}
@@ -46,11 +48,8 @@ def executer(persona_id: str | None, message: str, style: str | None = None, on_
         return arret()
     symbole, part = dem["symbole"], float(dem["part"])
     g = gabarit
-    seuils = (f"poids max/titre {pct(g['poids_max_par_titre'])} · part du risque max/titre {pct(g['part_risque_max_par_titre'])} · "
-              f"vol. max {pct(g['volatilite_max'])} · pire baisse max {pct(g['pire_baisse_max'])} · "
-              f"obligations min {pct(g['obligations_min'])} · crypto max {pct(g['crypto_max'])}")
-    remarques = ([f"Tension : {t}." for t in mandat["tensions"]]
-                 + [f"Information manquante : {', '.join(mandat['informations_manquantes'])}."] * bool(mandat["informations_manquantes"]))
+    seuils = _seuils(g)
+    remarques = _remarques(mandat)
     etape("Agent Profil", "warn", "Mandat construit et demande comprise · les hypothèses sont affichées"
           + (f" · {len(mandat['tensions'])} tension(s) dans le profil" if mandat["tensions"] else ""),
           trace=mandat["trace"], note=" ".join(remarques) or None,
@@ -61,6 +60,37 @@ def executer(persona_id: str | None, message: str, style: str | None = None, on_
                   ("Profil", f"{mandat['source']} · horizon {persona['horizon']}"),
                   *[("Hypothèse", h) for h in mandat["hypotheses"]],
                   ("Traces", f"{mandat['trace']} (mandat) · {dem['trace']} (demande)")])
+    return _analyser(journal, etapes, etape, mandat, symbole, part, univers, source, style)
+
+
+def _publieur(etapes: list, on_etape):
+    """Fonction etape(agent, statut, texte, **details) : ajoute l'étape et la publie en direct à l'interface."""
+    def etape(agent, statut, texte, **details):
+        e = {"agent": agent, "statut": statut, "texte": texte, **details}
+        etapes.append(e)
+        if on_etape:
+            on_etape(e)
+    return etape
+
+
+def _seuils(g: dict) -> str:
+    return (f"poids max/titre {pct(g['poids_max_par_titre'])} · part du risque max/titre {pct(g['part_risque_max_par_titre'])} · "
+            f"vol. max {pct(g['volatilite_max'])} · pire baisse max {pct(g['pire_baisse_max'])} · "
+            f"obligations min {pct(g['obligations_min'])} · crypto max {pct(g['crypto_max'])}")
+
+
+def _remarques(mandat: dict) -> list[str]:
+    return ([f"Tension : {t}." for t in mandat["tensions"]]
+            + [f"Information manquante : {', '.join(mandat['informations_manquantes'])}."] * bool(mandat["informations_manquantes"]))
+
+
+def _analyser(journal, etapes: list, etape, mandat: dict, symbole: str, part: float, univers, source: str,
+              style: str) -> dict:
+    """Étapes 3 à 5 (Analyste → Gouvernance + boucle de correction → Explicabilité + vérificateur).
+    Partagées par executer() et et_si() : même code, mêmes garde-fous."""
+    persona, gabarit = mandat["profil"], mandat["gabarit"]
+    g = gabarit
+    seuils = _seuils(g)
 
     # 3. Agent Analyste, tentative 1
     d = analyste.analyser_demande(journal, persona, symbole, part, gabarit, univers)
@@ -171,3 +201,40 @@ def reformuler(res: dict, style: str, on_etape=None) -> dict:
     res["fiche"], res["verif"] = rediger_verifie(res["contexte"], res["journal"], style, res["autorise"], etape)
     res["etapes"] = res["etapes"] + nouvelles
     return res
+
+
+def et_si(res: dict, parametre: str, valeur, on_etape=None) -> dict:
+    """« Et si… » : UNE modification (tolerance | horizon | part) appliquée à une COPIE du mandat d'origine,
+    puis Profil → Analyste → Gouvernance → Explicabilité, dans le même mode que l'analyse d'origine.
+
+    - part toujours de l'analyse d'ORIGINE (pas d'un autre « Et si ») ;
+    - le mandat, le journal et la réponse d'origine ne sont jamais modifiés (journal copié, numérotation continue) ;
+    - pas de Guardrails ni de relecture du message : la demande d'origine est reprise telle quelle.
+    Renvoie un résultat au même format qu'executer(), avec en plus res["et_si"] et res["origine"]."""
+    if res.get("arret"):
+        raise ValueError("« Et si » impossible : l'analyse d'origine s'est arrêtée avant les calculs.")
+    if res.get("et_si"):
+        raise ValueError("« Et si » se lance depuis l'analyse d'origine, pas depuis un autre « Et si ».")
+    _, univers, source = charger()
+    journal = res["journal"].copie()
+    etapes = []
+    etape = _publieur(etapes, on_etape)
+    origine = res["mandat"]
+    mandat = profil.mandat_modifie(origine, parametre, valeur, journal)
+    persona, g = mandat["profil"], mandat["gabarit"]
+    symbole = res["symbole"]
+    part = float(valeur) if parametre == "part" else float(origine["demande"]["part"])
+    mandat["demande"] = {**copy.deepcopy(origine["demande"]), "part": part}
+    etape("Agent Profil", "warn", f"{mandat['et_si']['libelle']} · mandat copié, l'analyse d'origine reste intacte"
+          + (f" · {len(mandat['tensions'])} tension(s) dans le profil" if mandat["tensions"] else ""),
+          trace=mandat["trace"], note=" ".join(_remarques(mandat)) or None,
+          mandat=[("Modification (scénario fictif)", mandat["et_si"]["libelle"]),
+                  ("Actif demandé", symbole), ("Part demandée", pct(part)),
+                  ("Gabarit appliqué", f"« {g['label']} » (config/)"),
+                  ("Seuils (hypothèses de l'équipe)", _seuils(g)),
+                  ("Profil", f"{mandat['source']} · horizon {persona['horizon']}"),
+                  ("Traces", f"{mandat['trace']} (mandat modifié) · {origine['trace']} (mandat d'origine)")])
+    nouveau = _analyser(journal, etapes, etape, mandat, symbole, part, univers, source, res["fiche"]["style"])
+    nouveau["et_si"] = dict(mandat["et_si"])
+    nouveau["origine"] = res
+    return nouveau

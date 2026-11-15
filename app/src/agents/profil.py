@@ -113,6 +113,11 @@ def construire_mandat(persona_id: str | None = None, saisie: dict | None = None,
         manquants = []
         hypotheses = [f"portefeuille actuel supposé : {profil['portefeuille_suppose_libelle']}"]
         source = f"persona de référence « {profil['nom']} » (config/personas)"
+    return _assembler_mandat(profil, source, manquants, hypotheses, journal)
+
+
+def _assembler_mandat(profil: dict, source: str, manquants: list[str], hypotheses: list[str], journal=None) -> dict:
+    """Profil → mandat complet (gabarit de config/, contraintes, tensions) + trace. Code pur."""
     gabarit = {"id": profil["risque"], **GABARITS[profil["risque"]]} if profil["risque"] else None
     bloquant = gabarit is None
     mandat = {
@@ -133,6 +138,48 @@ def construire_mandat(persona_id: str | None = None, saisie: dict | None = None,
     }
     if journal is not None:
         mandat["trace"] = _tracer_mandat(journal, mandat)
+    return mandat
+
+
+# ---------- « Et si… » : copie du mandat avec UNE modification ----------
+
+LIBELLES_ET_SI = {"tolerance": "tolérance au risque", "horizon": "horizon de placement", "part": "part demandée"}
+
+
+def valeur_lisible(parametre: str, valeur) -> str:
+    """Valeur d'un paramètre « Et si » en clair (pour les traces, l'interface et l'explication)."""
+    if parametre == "tolerance":
+        return f"« {GABARITS[valeur]['label']} »"
+    if parametre == "horizon":
+        return valeur if isinstance(valeur, str) else f"{nombre(valeur, 0)} ans"
+    return pct(valeur)
+
+
+def mandat_modifie(origine: dict, parametre: str, valeur, journal=None) -> dict:
+    """Nouveau mandat = COPIE du mandat d'origine avec UNE seule modification (l'original n'est jamais modifié).
+    - tolerance : autre gabarit de tolérance → limites recalculées ;
+    - horizon   : limites INCHANGÉES (elles ne dépendent que de la tolérance), tensions recalculées ;
+    - part      : profil inchangé (seule la demande change, voir l'orchestrateur).
+    Le portefeuille supposé reste celui d'origine (une seule modification à la fois)."""
+    import copy
+    if parametre not in LIBELLES_ET_SI:
+        raise ValueError(f"paramètre « Et si » non autorisé : {parametre}")
+    profil = copy.deepcopy(origine["profil"])
+    avant = {"tolerance": profil["risque"], "horizon": profil["horizon"],
+             "part": (origine.get("demande") or {}).get("part")}[parametre]
+    if parametre == "tolerance":
+        if valeur not in PROFIL["tolerances"]:
+            raise ValueError(f"tolérance inconnue : {valeur}")
+        profil["risque"] = valeur
+    elif parametre == "horizon":
+        profil["horizon"] = f"{nombre(float(valeur), 0)} ans"
+    modif = (f"Et si · {LIBELLES_ET_SI[parametre]} : {valeur_lisible(parametre, avant)} → "
+             f"{valeur_lisible(parametre, valeur if parametre != 'horizon' else profil['horizon'])}")
+    hypotheses = list(origine["hypotheses"]) + [f"{modif} (scénario fictif, une seule modification ; "
+                                               "portefeuille actuel supposé inchangé)"]
+    mandat = _assembler_mandat(profil, f"{origine['source']} · {modif}", list(origine["informations_manquantes"]),
+                               hypotheses, journal)
+    mandat["et_si"] = {"parametre": parametre, "avant": avant, "apres": valeur, "libelle": modif}
     return mandat
 
 
