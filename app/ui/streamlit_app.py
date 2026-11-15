@@ -3,6 +3,7 @@
 Lancer depuis app/ :  streamlit run ui/streamlit_app.py"""
 import os
 import sys
+import re
 import time
 from pathlib import Path
 
@@ -271,6 +272,19 @@ def afficher_reponse(res, index):
 
 
 # ---------- Écran 2 : « Mon compte » (compte de démonstration du persona) ----------
+def _esg_a_verifier(valeur_regle: str, univers) -> str:
+    """Reformule en clair les SEULES lignes signalées par la règle ESG (moteur de règles) : présentation seulement,
+    aucune ligne ajoutée ni retirée."""
+    infos = univers.set_index(univers["symbole"].astype(str))
+    signales = [s for s in infos.index if re.search(rf"(?<![\w.-]){re.escape(s)}(?![\w-])", valeur_regle)]
+    morceaux = []
+    for s in signales:
+        nom, classe, court = str(infos.loc[s, "nom"]), str(infos.loc[s, "classe"]), s.replace(".TO", "")
+        morceaux.append(f"{court} ({nom}) est un fonds de nombreuses entreprises, non évaluées une par une"
+                        if classe.startswith("etf") else f"{court} ({nom}) n'a pas encore été évalué")
+    return "" if not morceaux else "; ".join(morceaux) + ". À confirmer selon tes critères ESG."
+
+
 def _conformite_esg(p: dict, g: dict, univers, m: dict) -> tuple[str, str]:
     """KPI ESG : évaluée par le moteur de règles existant sur le portefeuille actuel (aucun LLM)."""
     if not p.get("exclusions_esg"):
@@ -279,7 +293,7 @@ def _conformite_esg(p: dict, g: dict, univers, m: dict) -> tuple[str, str]:
     if not regle["ok"]:
         return "Controverse", regle["valeur"]
     if regle.get("manquant"):
-        return "À vérifier", regle["valeur"]
+        return "À vérifier", _esg_a_verifier(regle["valeur"], univers) or regle["valeur"]
     return "Conforme", regle["valeur"]
 
 
