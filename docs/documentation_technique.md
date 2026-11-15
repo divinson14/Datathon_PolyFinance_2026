@@ -9,7 +9,7 @@ Le cas d'usage principal est un simulateur de décision de portefeuille sur des 
 - Amira, profil plus agressif ;
 - Mateo, profil modéré avec règle ESG.
 
-Exemple de scénario : si Robert pense placer 30 % de son portefeuille dans Tesla, le système calcule immédiatement le niveau de risque qu'il supporte réellement. Le calcule de point de bascule montre que la part compatible avec son profil n'est que de 3 %, et que la part de Tesla est responsable de 89,5 % du risque global de son portefeuille. Le même principe s'applique à Amira et Mateo, avec des seuils différents selon leur tolérance au risque et leurs contraintes ESG.
+Exemple de scénario : si Robert pense placer 30 % de son portefeuille dans Tesla, le système calcule immédiatement le niveau de risque qu'il supporte réellement. Le calcul du point de bascule montre que la part compatible avec son profil n'est que de 3 %, et que la part de Tesla est responsable de 89,5 % du risque global de son portefeuille. Le même principe s'applique à Amira et Mateo, avec des seuils différents selon leur tolérance au risque et leurs contraintes ESG.
 
 Le produit ne donne jamais de conseil d'achat personnalisé, ni de transaction réelle. Il fonctionne en mode simulation pédagogique, avec des personas fictifs et des garde-fous stricts.
 
@@ -21,9 +21,9 @@ L'architecture repose sur une séparation claire des responsabilités entre code
 
 ### Composants
 - Garde-fous : validation locale avant tout traitement, puis contrôle via Amazon Bedrock Guardrails pour interdire les transactions réelles, les conseils personnalisés ou les réponses non sécurisées.
-- Agent Profil : interprète la demande de l'utilisateur, identifie le profil (Robert, Amira, Mateo), le contexte de risque et la position demandée. Il produit un mandat structuré en JSON.
+- Agent Profil : interprète la demande de l'utilisateur (actif et part demandés) et construit un mandat structuré en JSON à partir du profil **choisi par l'utilisateur** (Robert, Amira, Mateo ou un profil saisi). La tolérance au risque n'est jamais déduite : si une information manque, l'agent la demande au lieu de la deviner.
 - Agent Analyste : choisit les outils de calcul à exécuter, sur la base du mandat. Il appelle des fonctions déterministes de calcul de risque, de volatilité, de contribution au risque et de point de bascule.
-- Agent Gouvernance : compare la demande avec les règles métier et les contraintes de sécurité. Il confirme que le calcul est admissible, qu'aucune transaction réelle n'est proposée, et que le verdict reste cohérent avec les seuils configurés.
+- Agent Gouvernance : compare la demande aux limites du profil à l'aide d'un moteur de règles en code pur, et rend un statut : *conforme*, *corrigeable* (l'Analyste est alors relancé au point de bascule) ou *impossible*. Le LLM formule seulement le verdict et les tensions avec les préférences du profil. Le blocage des transactions réelles relève des garde-fous.
 - Agent Explicabilité : reformule le verdict en langage naturel, avec des éléments de contexte, des hypothèses et des scénarios fictifs. Il ne produit pas les chiffres ; il les relie à leur source et à leur trace.
 - Vérificateur : contrôle que chaque chiffre affiché par l'interface correspond à une source fiable et à une trace d'exécution. Si un écart apparaît, il déclenche une régénération ou un retour de secours.
 
@@ -109,13 +109,24 @@ La logique de protection est implémentée en code pur dans `app/src/regles/` et
 
 L'explicabilité est fondamentale dans le produit : chaque réponse doit pouvoir être retracée jusqu'aux données qui la motivent.
 
-### Exemple de chaîne explicative
-Une phrase de réponse comme : « la part maximale compatible avec votre profil est de 3 % » est reliée à :
-1. un identifiant de trace unique ;
-2. le calcul exact exécuté par l'outil ;
-3. les entrées du portefeuille, de la tolérance au risque et de l'actif concerné ;
-4. les données sources utilisées pour produire la volatilité, le beta ou le risque de corrélation ;
-5. la règle de décision qui a déclenché le seuil.
+### Exemple de chaîne explicative (exécution réelle)
+Robert : « Tout le monde parle de Tesla, je pense mettre 30 % dedans. »
+
+1. **La phrase affichée** (étiquette *Fait*) : « Point de bascule : jusqu'à 3 % de TSLA, toutes les règles sont
+   respectées ; à 3,5 %, la première règle franchie est « part du risque max par titre ». » → trace **T-07**.
+2. **La trace T-07** : outil `point_de_bascule(base, "TSLA", gabarit)`, agent Analyste.
+   - entrées : portefeuille de base XBB.TO 30 % · ZST.TO 30 % · XIU.TO 15 % · SPY 15 % · FTS.TO 5 % · GLD 5 % ;
+     grille de 0 à 100 % par pas de 0,5 % ; gabarit « Faible à modéré » ;
+   - sortie : point de bascule 3 % ; première règle franchie à 3,5 % (part du risque max par titre) ; autres seuils :
+     volatilité à 9 %, pire baisse à 9 %, poids max à 10,5 % ; 201 points calculés ;
+   - période : 2021-11-19 → 2026-11-13, 261 semaines.
+3. **Les données** : `prix_cad_alignes.csv` (clôture ajustée, en CAD), version du jeu de données vérifiée par son
+   empreinte ; limite de 20 % lue dans `app/config/gabarits_risque.yaml`.
+4. **Le contrôle** : trace « Vérification de fidélité » : 53/53 chiffres retrouvés dans les traces, 0 formulation de
+   conseil.
+
+La phrase « Tesla représenterait 30 % du capital mais 89,5 % du risque » suit la même chaîne (trace T-03,
+outil `analyse_portefeuille`). Une analyse complète produit 14 traces, toutes visibles dans l'interface.
 
 ### Ce que l'utilisateur voit
 Dans l'interface, l'utilisateur peut ouvrir "Voir comment j'ai décidé" puis "Voir les traces". Il obtient ainsi :
@@ -142,7 +153,7 @@ cd app
 pytest tests/
 ```
 
-Cette étape vérifie la cohérence des modules de calcul, du moteur de règles, des garde-fous et des jeux de données. Elle fonctionne en mode local sans AWS.
+Cette étape vérifie la cohérence des modules de calcul, du moteur de règles, des garde-fous et des jeux de données. Elle fonctionne en mode local sans AWS. **Résultat : plus de 180 tests, tous réussis.** Exemples de propriétés vérifiées : la part du risque somme à 100 % ; au point de bascule toutes les règles passent et un pas plus loin l'une casse ; un chiffre inventé ou une formulation de conseil est rejeté ; chaque portefeuille de départ respecte son propre profil.
 
 ### Scénarios de validation
 Commande :
@@ -151,13 +162,21 @@ cd app
 python tests/lancer_scenarios.py
 ```
 
-Le script génère un tableau de scénarios pièges et de cas de bord, notamment :
-- demande de transaction réelle ;
-- demande de conseil personnalisé ;
-- demande de profil incohérent ;
-- actif très concentré ;
-- situation de rendu impossible ou trop risqué ;
-- cas de test de la tolérance au risque et du point de bascule.
+Le script rejoue 14 scénarios pièges : **14/14 conformes**.
+
+| Scénario | Comportement obtenu |
+|---|---|
+| Robert / Amira veulent 30 % dans Tesla | 4 / 3 règles violées, correction au point de bascule (3 % / 13 %) |
+| Robert veut 3 % dans Tesla | 0 règle violée (sous le point de bascule) |
+| Robert veut 5 % de Bitcoin | crypto interdite : aucune part compatible, dit honnêtement |
+| Mateo : 10 % de Tesla / 5 % d'Exxon | part du risque bloquante / controverse ESG, aucune part compatible |
+| « 50 000 $ dans Tesla » (capital de 200 000 $) | converti en 25 % par le code |
+| Demande de transaction réelle | bloquée par le garde-fou |
+| Part manquante, actif inconnu, deux actifs, 150 % | l'agent pose une question au lieu de deviner |
+| Profil saisi sans tolérance / élevé avec 3 ans d'horizon | tolérance demandée / tension signalée |
+
+Sur Amazon Bedrock, le parcours complet de Robert donne 6 affirmations, 33/33 chiffres vérifiés et aucune
+formulation de conseil ; `tests/tester_profil.py --bedrock` réussit 9 cas sur 9.
 
 ### Vérification de robustesse
 Les contrôles incluent :
