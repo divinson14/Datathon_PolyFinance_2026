@@ -221,3 +221,10 @@ Sortie : `data/processed/esg_drapeaux.csv` (via `02_construire_esg.py`). Sources
   vérifié : `verifier_donnees.py --pipeline`, `pytest tests/` et `lancer_scenarios.py` verts — P1
 - 2026-11-15 — Manifeste des données : version et empreintes SHA-256 des CSV de `processed/`, vérifiées à chaque
   lecture et affichées avec la source (traces et interface) — chaque chiffre est traçable jusqu'au fichier exact — P1
+- 2026-11-15 — Contrôles de qualité automatiques (`03_rapport_qualite.py`, `verifier_donnees.py`) : prix > 0, dates
+  uniques et ordonnées, aucune valeur manquante, taux USD/CAD entre 1,15 et 1,55, aucune variation quotidienne > 35 %
+  (seuil d'erreur probable : un fractionnement non ajusté donne -50 % ou plus). Les variations > 15 % (40 sur 5 ans,
+  surtout crypto, SHOP, NVDA, TSLA) sont listées dans le rapport avec leur explication
+  (`raw/added/explications_variations.csv`) : « hypothèse à confirmer » tant qu'aucune source datée n'est citée,
+  « à expliquer » si l'équipe ne connaît pas l'événement — aucune justification inventée. Aucune n'a été corrigée :
+  toutes sont des mouvements de marché plausibles — P1

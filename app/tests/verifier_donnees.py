@@ -63,6 +63,16 @@ manquants = sorted(sym_univers - set(prix.columns))
                                  else f"Actifs de l'univers sans prix : {manquants}")
 nan = int(prix.isna().sum().sum())
 (ok if nan == 0 else attention)(f"{nan} valeur(s) manquante(s) dans les prix nettoyés")
+negatifs = int((prix <= 0).sum().sum())
+(ok if negatifs == 0 else echec)("Tous les prix sont strictement positifs" if negatifs == 0
+                                 else f"{negatifs} prix nuls ou négatifs")
+(ok if prix.index.is_unique and prix.index.is_monotonic_increasing else echec)(
+    "Dates uniques et dans l'ordre chronologique")
+# Seuil identique à data/scripts/03_rapport_qualite.py (SEUIL_SUSPECT) : au-delà, erreur de données probable.
+sauts = prix.pct_change(fill_method=None).abs().stack()
+sauts = sauts[sauts > 0.35]
+(ok if sauts.empty else echec)("Aucune variation quotidienne de plus de 35 %" if sauts.empty else
+                               "Variations de plus de 35 % : " + ", ".join(f"{s} le {d.date()}" for d, s in sauts.index))
 
 # ------------------------------------------------------------------ 3. Taux de change
 titre("3. Taux de change USD/CAD")
