@@ -1,30 +1,29 @@
-"""Interface AlphaForge : 1) choix du profil, 2) écran coupé en deux (chat | agents en direct).
-Lancer depuis app/ :  streamlit run ui/streamlit_app.py
-Maquette de référence : docs/prototype/index.html"""
+"""Interface AlphaForge : 1) choix du profil, 2) « Mon compte » (KPI, positions, historique),
+3) analyse (chat + coulisses en ligne de temps). Présentation seulement : la logique est dans src/.
+Lancer depuis app/ :  streamlit run ui/streamlit_app.py"""
+import os
 import sys
+import time
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))   # rend « src » importable
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))   # rend « src » et « ui » importables
 
 import altair as alt
 import pandas as pd
 import streamlit as st
 
-from src import config
+from src import bedrock_client, config
 from src.agents import explicabilite, profil
 from src.donnees.chargeur import LIBELLE_DEMO, donnees_fictives
 from src.formatage import money, pct
 from src.orchestrateur import executer, reformuler
+from ui.composants import badge_etiquette, badge_trace, carte_kpi, carte_verdict, etape_timeline
+from ui.style import COULEURS, injecter_style
 
-st.set_page_config(page_title="AlphaForge AI", layout="wide")
-st.markdown("""<style>
-.tag{display:inline-block;font-size:11px;font-weight:700;text-transform:uppercase;padding:2px 7px;border-radius:6px;margin-right:6px}
-.fait{background:#E6EEFC;color:#1A3E9E}.hyp{background:#FFF4D6;color:#6B4200}.scen{background:#EEE8FB;color:#4B2C9E}
-.tr{font-family:monospace;font-size:12px;color:#1F4FD1;border:1px solid #C9D3E6;border-radius:5px;padding:1px 5px;margin-left:3px}
-</style>""", unsafe_allow_html=True)
+st.set_page_config(page_title="AlphaForge", layout="wide")
+injecter_style()
 
 ICONES = {"ok": "✅", "warn": "⚠️", "fail": "❌"}
-CLASSES = {"Fait": "fait", "Hypothèse": "hyp", "Scénario fictif": "scen"}
 etat = st.session_state
 etat.setdefault("persona", None)
 etat.setdefault("profil_saisi", None)
@@ -33,7 +32,19 @@ etat.setdefault("etapes", [])
 etat.setdefault("memoire", None)          # dernier actif / dernière part, pour les relances courtes
 etat.setdefault("demande_en_attente", None)   # demande incomplète (actif OU part) complétée au message suivant
 
-st.warning("**Simulation uniquement** — aucune transaction réelle, aucun conseil financier personnalisé.", icon="⚠️")
+def entete():
+    """Marque + indicateur discret du mode (Bedrock ou démonstration hors ligne)."""
+    g, d = st.columns([3, 2])
+    g.markdown("<div class='af-marque'>Alpha<span>Forge</span></div>", unsafe_allow_html=True)
+    if bedrock_client.actif():
+        point, texte = COULEURS["vert"], f"Bedrock · {os.getenv('AWS_REGION', 'us-east-1')}"
+    else:
+        point, texte = COULEURS["gris"], "Mode démonstration hors ligne"
+    d.markdown(f"<div style='text-align:right'><span class='af-pastille'><span class='af-point' "
+               f"style='background:{point}'></span>{texte}</span></div>", unsafe_allow_html=True)
+
+
+entete()
 if donnees_fictives():          # repli silencieux du chargeur : on le rend impossible à manquer
     st.error(f"**{LIBELLE_DEMO}.** Les chiffres affichés sont simulés et ne reflètent pas les marchés réels. "
              "Pour les vraies données : `python data/scripts/01_nettoyer_prix.py` puis redémarrer.", icon="🚨")
@@ -42,17 +53,18 @@ if donnees_fictives():          # repli silencieux du chargeur : on le rend impo
 # ---------- Écran 1 : choix du profil ----------
 def ecran_profil():
     st.title("Choisis ton profil d'investisseur")
-    st.caption("Profils fictifs. Le même système répond différemment selon le risque, l'horizon et les préférences.")
-    cols = st.columns(len(config.PERSONAS))
+    st.markdown("<div class='af-sous-titre'>Simulation éducative · personas fictifs · aucun conseil personnalisé</div>",
+                unsafe_allow_html=True)
+    cols = st.columns(len(config.PERSONAS), gap="large")
     for col, (pid, p) in zip(cols, config.PERSONAS.items()):
         with col.container(border=True):
-            st.subheader(f"{p['nom']}, {p['age']} ans")
-            st.caption(p["metier"])
-            st.markdown(f"**Risque :** {config.GABARITS[p['risque']]['label']}  \n**Horizon :** {p['horizon']}")
-            st.markdown(f"**Objectif :** {p['objectif']}")
-            st.markdown("\n".join(f"- {x}" for x in p["preferences"]))
+            st.markdown(f"<div class='af-avatar'>{p['nom'][:1].upper()}</div>"
+                        f"<div class='af-persona-nom'>{p['nom']}</div>"
+                        f"<div class='af-persona-meta'>{p['age']} ans · risque {config.GABARITS[p['risque']]['label'].lower()}"
+                        f" · horizon {p['horizon']}</div>"
+                        f"<div class='af-persona-phrase'>{p['metier']}. {p['objectif']}.</div>", unsafe_allow_html=True)
             a_faire = p.get("a_faire")
-            if st.button(f"Continuer avec {p['nom']}", key=pid, width="stretch", type="primary", disabled=bool(a_faire)):
+            if st.button(f"Choisir {p['nom']}", key=pid, width="stretch", type="primary", disabled=bool(a_faire)):
                 etat.persona, etat.messages, etat.etapes, etat.memoire, etat.demande_en_attente = pid, [], [], None, None
                 st.rerun()
             if a_faire:
@@ -183,8 +195,8 @@ def afficher_reponse(res, index):
     st.markdown(f"**{f['intro']}**")
     st.caption("💱 Montants et rendements en dollars canadiens (CAD) — actifs en USD convertis au taux de la Banque du Canada.")
     for l in f["lignes"]:
-        traces = "".join(f"<span class='tr'>{t}</span>" for t in l.get("traces", []))
-        st.markdown(f"<span class='tag {CLASSES.get(l['tag'], 'fait')}'>{l['tag']}</span>{l['texte']} {traces}", unsafe_allow_html=True)
+        traces = "".join(badge_trace(t) for t in l.get("traces", []))
+        st.markdown(f"{badge_etiquette(l['tag'])}{l['texte']} {traces}", unsafe_allow_html=True)
     courbe_bascule(res)
     m = d["mesures"]
     with st.expander("Détail par ligne : part des dollars et part du risque"):

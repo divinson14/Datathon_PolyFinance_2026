@@ -1,0 +1,12 @@
+# Thème AlphaForge (sobre, clair). Lu par « streamlit run » lancé depuis app/.
+[theme]
+base = "light"
+primaryColor = "#1F6FEB"
+backgroundColor = "#F7F7F5"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#111111"
+font = "sans serif"
+
+[client]
+toolbarMode = "minimal"
+showSidebarNavigation = false
