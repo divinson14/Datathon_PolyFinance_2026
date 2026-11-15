@@ -28,6 +28,7 @@ PROFIL = _yaml("profil.yaml")
 GARDE_FOUS = _yaml("garde_fous.yaml")
 STYLES = _yaml("styles_explication.yaml")
 TENSIONS_PROFIL = _yaml("tensions_profil.yaml")
+SCENARIOS = _yaml("scenarios.yaml")["parametres"]          # liste blanche « Et si… »
 PERSONAS = {
     p.stem: json.loads(p.read_text(encoding="utf-8"))
     for p in sorted((APP / "config" / "personas").glob("*.json"))

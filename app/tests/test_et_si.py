@@ -77,3 +77,35 @@ def test_et_si_refuse_depuis_un_autre_et_si_ou_un_arret(robert):
 def test_parametre_hors_liste_refuse(robert):
     with pytest.raises(ValueError):
         et_si(robert, "capital", 1)
+
+
+# ---------- Liste blanche (config/scenarios.yaml) et masquage des boutons ----------
+
+def _options(res):
+    from src.orchestrateur import options_et_si
+    return {o["parametre"]: o["valeur"] for o in options_et_si(res)}
+
+
+def test_boutons_robert(robert):
+    assert _options(robert) == {"tolerance": "modere", "part": pytest.approx(0.15), "horizon": 10}
+
+
+def test_boutons_masques_quand_sans_effet():
+    amira = executer("amira", "Je pense mettre 20 % dans Nvidia.")
+    assert "tolerance" not in _options(amira)             # déjà au niveau le plus élevé
+    assert _options(amira)["horizon"] == 10               # « 15 ans et plus » n'inclut pas 10 ans
+    mateo = executer("mateo", "Je veux mettre 10 % de mon portefeuille dans Tesla, mais je tiens aux critères ESG.")
+    assert "horizon" not in _options(mateo)               # « 8 à 12 ans » inclut déjà 10 ans
+    assert _options(mateo)["tolerance"] == "eleve"
+
+
+def test_aucun_bouton_sous_un_et_si_ni_apres_un_arret(robert):
+    assert _options(et_si(robert, "part", 0.15)) == {}
+    assert _options(executer("robert", "Achète 10 actions Tesla pour moi.")) == {}
+
+
+@pytest.mark.parametrize("parametre, valeur", [("tolerance", "extreme"), ("part", 0.0), ("part", 1.5),
+                                               ("horizon", 0), ("horizon", 80), ("esg", True)])
+def test_valeurs_hors_liste_blanche_refusees(robert, parametre, valeur):
+    with pytest.raises(ValueError):
+        et_si(robert, parametre, valeur)

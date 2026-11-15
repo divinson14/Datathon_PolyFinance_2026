@@ -203,6 +203,46 @@ def reformuler(res: dict, style: str, on_etape=None) -> dict:
     return res
 
 
+def valeur_et_si_valide(parametre: str, valeur) -> bool:
+    """La valeur respecte-t-elle la liste blanche de config/scenarios.yaml ? Code pur."""
+    regle = config.SCENARIOS.get(parametre)
+    if regle is None:
+        return False
+    if regle["type"] == "gabarit":
+        return valeur in regle["valeurs_permises"]
+    if regle["type"] == "part":
+        return isinstance(valeur, (int, float)) and regle["part_min"] <= valeur < 1
+    if regle["type"] == "annees":
+        return isinstance(valeur, (int, float)) and regle["min"] <= valeur <= regle["max"]
+    return False
+
+
+def options_et_si(res: dict) -> list[dict]:
+    """Boutons « Et si… » proposés sous une réponse d'ORIGINE : [{parametre, valeur, bouton, effet}].
+    Un bouton sans effet est masqué (règles et valeurs dans config/scenarios.yaml). Code pur."""
+    if res.get("arret") or res.get("et_si"):
+        return []
+    options = []
+    for parametre, regle in config.SCENARIOS.items():
+        valeur = None
+        if parametre == "tolerance":
+            ordre = regle["valeurs_permises"]
+            actuel = res["mandat"]["profil"]["risque"]
+            if actuel in ordre and ordre.index(actuel) + 1 < len(ordre):
+                valeur = ordre[ordre.index(actuel) + 1]
+        elif parametre == "part":
+            moitie = float(res["mandat"]["demande"]["part"]) * regle["facteur"]
+            valeur = moitie if moitie >= regle["part_min"] else None
+        elif parametre == "horizon":
+            h_min, h_max = profil.horizon_en_annees(res["mandat"]["profil"].get("horizon"))
+            cible = regle["valeur"]
+            deja = h_min is not None and h_min <= cible and (h_max is None or cible <= h_max)
+            valeur = None if deja else cible
+        if valeur is not None and valeur_et_si_valide(parametre, valeur):
+            options.append({"parametre": parametre, "valeur": valeur, "bouton": regle["bouton"], "effet": regle["effet"]})
+    return options
+
+
 def et_si(res: dict, parametre: str, valeur, on_etape=None) -> dict:
     """« Et si… » : UNE modification (tolerance | horizon | part) appliquée à une COPIE du mandat d'origine,
     puis Profil → Analyste → Gouvernance → Explicabilité, dans le même mode que l'analyse d'origine.
@@ -215,6 +255,8 @@ def et_si(res: dict, parametre: str, valeur, on_etape=None) -> dict:
         raise ValueError("« Et si » impossible : l'analyse d'origine s'est arrêtée avant les calculs.")
     if res.get("et_si"):
         raise ValueError("« Et si » se lance depuis l'analyse d'origine, pas depuis un autre « Et si ».")
+    if not valeur_et_si_valide(parametre, valeur):
+        raise ValueError(f"« Et si » hors liste blanche (config/scenarios.yaml) : {parametre} = {valeur!r}")
     _, univers, source = charger()
     journal = res["journal"].copie()
     etapes = []
