@@ -363,3 +363,22 @@ def test_garde_fou_ne_vide_pas_la_demande_en_attente():
     att = {"symbole": "TSLA", "message_symbole": "tesla"}
     res = executer("robert", "Achète-le pour moi.", en_attente=att)
     assert res["arret"] and maj_demande_en_attente(att, res, "Achète-le pour moi.") == att
+
+
+# ---------- Reconnaissance robuste des actifs (repli local, sans LLM) ----------
+
+@pytest.mark.parametrize("message, symbole", [("nvda", "NVDA"), ("je veux 10 % de tsla", "TSLA"),
+                                              ("et qu'en est til pour nvdia?", "NVDA"), ("10 % dans amazone", "AMZN")])
+def test_tickers_minuscules_et_fautes_de_frappe(message, symbole):
+    approx = []
+    assert profil.actifs_mentionnes(message, UNIVERS, approx) == [symbole]
+
+
+def test_approximation_affichee_dans_la_methode():
+    r = ext("je veux mettre 30% dans nvdia")
+    assert r["symbole"] == "NVDA" and "approximation : nvdia → NVDA" in r["methode"]
+
+
+@pytest.mark.parametrize("message", ["td", "un appel important", "je veux 10 % dans bombardier", "bonjour"])
+def test_pas_de_faux_positif(message):
+    assert profil.actifs_mentionnes(message, UNIVERS) == []

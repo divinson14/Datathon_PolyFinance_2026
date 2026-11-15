@@ -40,3 +40,10 @@ marqueurs_de_comparaison: ["et pour", "qu en est il", "qu en est til", "quen est
 marqueurs_de_reprise_part: ["comme avant", "comme au debut", "comme tout a l heure", "meme part", "meme montant",
                             "meme chose", "pareil", "ce que je t ai demande", "je t ai demande", "je t ai dit",
                             "deja dit", "deja donne", "comme la derniere fois", "la meme"]
+
+# Reconnaissance des actifs avec fautes de frappe (« nvdia » → NVIDIA), quand aucun actif n'est reconnu exactement.
+# Ressemblance minimale (0 à 1) entre le mot écrit et un ticker ou un nom d'actif. 0,85 évite « appel » → Apple (0,80).
+seuil_approximation_actif: 0.85
+# Mots courants jamais rapprochés d'un actif.
+mots_de_relance_exclus_approx: [appel, entre, pense, mettre, veux, dans, avec, pour, plus, moins, combien, alors, bonjour]
+
