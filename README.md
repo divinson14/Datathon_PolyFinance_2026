@@ -5,7 +5,7 @@ Copilote d'investissement **agentique et auto-explicatif**, en simulation. Datat
 Banque Nationale × AWS.
 
 - **Outil déployé :** https://datathonpolyfinance2026-mxffdccgcsajtvrgwrguj8.streamlit.app 
-- **Vidéo de démonstration :** <!-- ÉQUIPE : lien Google Drive --> _à compléter_
+- **Vidéo de démonstration :** https://drive.google.com/file/d/1m3k_9L89c2hqjmGbsCBXVWMsSA_yzjpL/view?usp=sharing
 - **One-pager :** [`docs/one_pager.md`](docs/one_pager.md) · **Documentation technique :** [`docs/documentation_technique.md`](docs/documentation_technique.md)
 
 > Simulation éducative sur des profils fictifs : aucune transaction réelle, aucun conseil financier personnalisé.
